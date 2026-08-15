@@ -177,10 +177,12 @@ function migrateJson() {
           p.lastFetched || null
         );
         for (const msg of Object.values(p.messages || {})) {
+          const content = normalizeContent(msg.content, msg.type);
+          const replyContent = normalizeContent(msg.replyContent, "text");
           stmts.upsertMessage.run(
-            msg.messageId, pid, msg.content || null, msg.type || "text",
+            msg.messageId, pid, content, msg.type || "text",
             msg.createdAt || null, msg.isDelete || "false", msg.deletedAt || null,
-            msg.messageReplyId || -1, msg.replyContent || null,
+            msg.messageReplyId || -1, replyContent,
             msg.nickname || null, msg.profileImage || null
           );
         }
@@ -268,6 +270,32 @@ async function fetchFromWithFan(profileId, lastSyncAt, auth) {
 
 // ========== Translation API ==========
 
+// withFan changed (2026-08-15) `content`/`replyContent` and translate `content`
+// from a plain string into an array of content-block objects, e.g.
+// [{"text":"안녕"}], [{"voice":"https://...mp4"}], [{"image":"...png"}].
+// Older messages still return a plain string. Normalize both back to a plain
+// string (text -> joined blocks; voice/image -> the media URL).
+function blockText(b) {
+  if (!b || typeof b !== "object") return null;
+  for (const k of ["text", "voice", "image", "src", "url"]) {
+    const v = b[k];
+    if (v != null && String(v).trim() !== "") return String(v);
+  }
+  return null;
+}
+function normalizeContent(content, type) {
+  if (content == null) return null;
+  if (typeof content === "string") {
+    const s = content.trim();
+    return s === "" || s === "null" ? null : content;
+  }
+  const blocks = Array.isArray(content) ? content : [content];
+  const isMedia = type === "voice" || type === "image";
+  const parts = blocks.map(blockText).filter(Boolean);
+  const joined = parts.join(isMedia ? "" : "\n").trim();
+  return joined || null;
+}
+
 async function translateMessage(messageId, content, auth) {
   const path = `/api/v4/message/translate?id=${messageId}&languageId=4&type=message`;
   const headers = {
@@ -276,16 +304,15 @@ async function translateMessage(messageId, content, auth) {
   };
   try {
     const result = await httpGet("app.withfan.co", 6372, path, headers);
-    if (result.status === 200 && result.data.content && result.data.content.trim() !== "") return result.data.content;
+    const c = normalizeContent(result.data?.content, "text");
+    if (result.status === 200 && c) return c;
   } catch (e) {}
   return null;
 }
 
 async function translateFanReply(replyId, content, auth) {
-  // If the reply isn't Korean (e.g. CN fans writing in Chinese), the withFan
-  // translate API returns empty content. Treat the original as the result so
-  // these replies don't get stuck forever as "untranslated".
-  const c = (content || "").trim();
+  // content is the already-normalized reply string here.
+  const c = normalizeContent(content, "text") || "";
   if (c && !/[가-힣]/.test(c)) return c;
   const path = `/api/v4/message/translate?id=${replyId}&languageId=4&type=messageReply`;
   const headers = {
@@ -294,7 +321,8 @@ async function translateFanReply(replyId, content, auth) {
   };
   try {
     const result = await httpGet("app.withfan.co", 6372, path, headers);
-    if (result.status === 200 && result.data.content && result.data.content.trim() !== "") return result.data.content;
+    const got = normalizeContent(result.data?.content, "text");
+    if (result.status === 200 && got) return got;
   } catch (e) {}
   return null;
 }
@@ -333,10 +361,13 @@ async function syncProfile(profileId, auth) {
   let newCount = 0;
   const tx = db.transaction(() => {
     for (const msg of result.messages) {
+      // Normalize new array-of-blocks content format back to plain strings.
+      msg.content = normalizeContent(msg.content, msg.type);
+      msg.replyContent = normalizeContent(msg.replyContent, "text");
       const r = insertMsg.run(
-        msg.messageId, profileId, msg.content || null, msg.type || "text",
+        msg.messageId, profileId, msg.content, msg.type || "text",
         msg.createdAt || null, msg.isDelete || "false", msg.deletedAt || null,
-        msg.messageReplyId || -1, msg.replyContent || null,
+        msg.messageReplyId || -1, msg.replyContent,
         msg.nickname || null, msg.profileImage || null
       );
       if (r.changes > 0) newCount++;
@@ -381,7 +412,7 @@ async function syncProfile(profileId, auth) {
   const untranslatedFan = {};
   for (const msg of result.messages) {
     const t = stmts.getTranslation.get(profileId, msg.messageId);
-    if ((!t || !t.fan_translation) && msg.messageReplyId && msg.messageReplyId > 0 && msg.replyContent && msg.replyContent !== "null" && msg.replyContent.trim()) {
+    if ((!t || !t.fan_translation) && msg.messageReplyId && msg.messageReplyId > 0 && msg.replyContent) {
       untranslatedFan[String(msg.messageReplyId)] = { msgKey: String(msg.messageId), content: msg.replyContent };
     }
   }

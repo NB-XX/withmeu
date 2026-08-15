@@ -265,7 +265,7 @@ function fetchMessages(pid, opts){
     if(!d.success)throw new Error(d.error||"error");
     S.profiles[pid]=Object.assign({},S.profiles[pid],d.profile);
 
-    var newMsgs=d.messages||[];
+    var newMsgs=(d.messages||[]).map(normMsg);
     if(append&&S.cache[pid]){
       var exist={};
       S.cache[pid].messages.forEach(function(m){exist[getMsgId(m)]=true;});
@@ -334,6 +334,42 @@ function updateInfo(cacheEntry){
   }
   var lf=cacheEntry.profile?cacheEntry.profile.lastFetched:null;
   byId("infoR").textContent=lf?"请求时间 "+new Date(lf).toLocaleString().slice(0,16):"";
+}
+
+// Defensive content normalizer. withFan now returns content/replyContent/
+// translation as arrays of content-block objects ([{"text":"..."}],
+// [{"voice":"url"}]); older rows store those as stringified arrays. Normalize
+// any residual array or [{"...}] string back to a plain string. After the
+// server-side fix + DB cleanup these should already be clean strings; this is
+// a belt-and-suspenders fallback so the UI never shows raw [{"text":...}].
+function norm(v,type){
+  if(v==null)return "";
+  if(typeof v==="string"){
+    var s=v.trim();
+    if(!s||s==="null")return "";
+    if(/^\[\{"/.test(s)||/^\{"/.test(s)){try{var p=JSON.parse(s);var n=norm(p,type);if(n)return n;}catch(e){}}
+    return v;
+  }
+  if(typeof v==="object"){
+    var bl=Array.isArray(v)?v:[v];
+    var isMedia=type==="voice"||type==="image";
+    var parts=[];
+    for(var i=0;i<bl.length;i++){var b=bl[i];if(!b||typeof b!=="object")continue;
+      var ks=["text","voice","image","src","url"];var got=null;
+      for(var k=0;k<ks.length;k++){var val=b[ks[k]];if(val!=null&&String(val).trim()){got=String(val);break;}}
+      if(got)parts.push(got);
+    }
+    return parts.join(isMedia?"":"\n");
+  }
+  return String(v);
+}
+function normMsg(m){
+  if(!m)return m;
+  m.content=norm(m.content,m.type);
+  m.replyContent=norm(m.replyContent);
+  m.translation=norm(m.translation);
+  m.fanTranslation=norm(m.fanTranslation);
+  return m;
 }
 
 function buildMsgHTML(m){
@@ -490,7 +526,7 @@ function fetchGalleryImages(){
     if(!d.success)return;
     S.galleryTotal=d.profile.filteredTotal;
     S.galleryHasMore=d.hasMore;
-    var imgs=d.messages||[];
+    var imgs=(d.messages||[]).map(normMsg);
     S.galleryImages=S.galleryImages.concat(imgs);
     S.galleryOffset=S.galleryImages.length;
     if(S.galleryOffset===0)renderGalleryEmpty();

@@ -156,6 +156,35 @@ function resolveFanTranslation(content, apiContent) {
   return null;
 }
 
+// withFan changed (2026-08-15) the `content` / `replyContent` and the translate
+// `content` field from a plain string into an array of content-block objects:
+//   text  -> [{"text":"안녕"}]
+//   voice -> [{"voice":"https://...mp4"}]
+//   image -> [{"image":"https://...png"}]  (also seen src/url keys)
+// Older messages still return a plain string. Normalize both shapes back to a
+// plain string (text -> joined blocks; voice/image -> the media URL) so the DB
+// and the rest of the pipeline keep storing/consuming plain strings.
+function blockText(b) {
+  if (!b || typeof b !== "object") return null;
+  for (const k of ["text", "voice", "image", "src", "url"]) {
+    const v = b[k];
+    if (v != null && String(v).trim() !== "") return String(v);
+  }
+  return null;
+}
+function normalizeContent(content, type) {
+  if (content == null) return null;
+  if (typeof content === "string") {
+    const s = content.trim();
+    return s === "" || s === "null" ? null : content;
+  }
+  const blocks = Array.isArray(content) ? content : [content];
+  const isMedia = type === "voice" || type === "image";
+  const parts = blocks.map(blockText).filter(Boolean);
+  const joined = parts.join(isMedia ? "" : "\n").trim();
+  return joined || null;
+}
+
 // ========== API handlers ==========
 
 async function handleProfiles(env) {
@@ -351,10 +380,13 @@ async function syncProfile(env, profileId, auth) {
 
   const batch = [];
   for (const msg of messages) {
+    // Normalize new array-of-blocks content format back to plain strings.
+    msg.content = normalizeContent(msg.content, msg.type);
+    msg.replyContent = normalizeContent(msg.replyContent, "text");
     batch.push(stmt.bind(
-      msg.messageId, profileId, msg.content || null, msg.type || "text",
+      msg.messageId, profileId, msg.content, msg.type || "text",
       msg.createdAt || null, msg.isDelete || "false", msg.deletedAt || null,
-      msg.messageReplyId || -1, msg.replyContent || null,
+      msg.messageReplyId || -1, msg.replyContent,
       msg.nickname || null, msg.profileImage || null
     ));
   }
@@ -377,14 +409,15 @@ async function syncProfile(env, profileId, auth) {
       // Try translate (fire-and-forget per message)
       try {
         const tr = await wfFetch(`/api/v4/message/translate?id=${msg.messageId}&languageId=4&type=message`, auth);
-        if (tr.status === 200 && tr.data.content && tr.data.content.trim()) {
+        const trc = normalizeContent(tr.data?.content, "text");
+        if (tr.status === 200 && trc) {
           await env.DB.prepare("INSERT OR REPLACE INTO translations (message_id, profile_id, translation, fan_translation) VALUES (?1, ?2, ?3, '')")
-            .bind(msg.messageId, profileId, tr.data.content).run();
+            .bind(msg.messageId, profileId, trc).run();
         }
       } catch (e) { /* skip */ }
     }
     // Fan reply translation
-    if (msg.messageReplyId && msg.messageReplyId > 0 && msg.replyContent && msg.replyContent !== "null" && msg.replyContent.trim()) {
+    if (msg.messageReplyId && msg.messageReplyId > 0 && msg.replyContent) {
       const ft = await env.DB.prepare("SELECT fan_translation FROM translations WHERE profile_id = ?1 AND message_id = ?2")
         .bind(profileId, msg.messageId).first();
       if (!ft || !ft.fan_translation) {
@@ -393,7 +426,7 @@ async function syncProfile(env, profileId, auth) {
           try {
             const tr = await wfFetch(`/api/v4/message/translate?id=${msg.messageReplyId}&languageId=4&type=messageReply`, auth);
             if (tr.status === 200) {
-              const got = resolveFanTranslation(msg.replyContent, tr.data.content);
+              const got = resolveFanTranslation(msg.replyContent, normalizeContent(tr.data?.content, "text"));
               if (got) {
                 const existing = await env.DB.prepare("SELECT translation FROM translations WHERE profile_id = ?1 AND message_id = ?2")
                   .bind(profileId, msg.messageId).first();
@@ -432,11 +465,12 @@ async function retryMissingTranslations(env, profileId, auth) {
     for (const row of untranslated.results) {
       try {
         const tr = await wfFetch("/api/v4/message/translate?id=" + row.message_id + "&languageId=4&type=message", auth);
-        if (tr.status === 200 && tr.data.content && tr.data.content.trim()) {
+        const trc = normalizeContent(tr.data?.content, "text");
+        if (tr.status === 200 && trc) {
           const existing = await env.DB.prepare("SELECT fan_translation FROM translations WHERE profile_id = ?1 AND message_id = ?2")
             .bind(profileId, row.message_id).first();
           await env.DB.prepare("INSERT OR REPLACE INTO translations (message_id, profile_id, translation, fan_translation) VALUES (?1, ?2, ?3, ?4)")
-            .bind(row.message_id, profileId, tr.data.content, existing?.fan_translation || null).run();
+            .bind(row.message_id, profileId, trc, existing?.fan_translation || null).run();
         }
       } catch (e) { /* skip */ }
     }
@@ -452,7 +486,7 @@ async function retryMissingTranslations(env, profileId, auth) {
         let resolved = resolveFanTranslation(row.reply_content, null);
         if (!resolved) {
           const tr = await wfFetch("/api/v4/message/translate?id=" + row.message_reply_id + "&languageId=4&type=messageReply", auth);
-          if (tr.status === 200) resolved = resolveFanTranslation(row.reply_content, tr.data.content);
+          if (tr.status === 200) resolved = resolveFanTranslation(row.reply_content, normalizeContent(tr.data?.content, "text"));
         }
         if (resolved) {
           const existing = await env.DB.prepare("SELECT translation FROM translations WHERE profile_id = ?1 AND message_id = ?2")
