@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+<title>withMeu</title>
+<style>
+:root{--bg:#fafaf8;--card:#fff;--border:#e8e8e5;--text:#1a1a1a;--text2:#787874;--text3:#b0b0ac;--fan-bg:#f4f4f1;--accent:#1a1a1a;}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR","PingFang SC","Microsoft YaHei",sans-serif;font-size:15px;line-height:1.6;color:var(--text);background:var(--bg);min-height:100vh;display:flex;justify-content:center;-webkit-font-smoothing:antialiased;}
+#app{width:100%;max-width:560px;min-height:100vh;display:flex;flex-direction:column;border-left:1px solid var(--border);border-right:1px solid var(--border);background:var(--bg);}
+
+.topbar{position:sticky;top:0;z-index:30;background:rgba(250,250,248,0.88);backdrop-filter:blur(16px);padding:16px 20px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);}
+.topbar .logo{font-size:15px;font-weight:600;letter-spacing:-0.2px;display:flex;align-items:center;gap:8px;}
+.topbar .logo svg{width:20px;height:20px;}
+.topbar .spacer{flex:1;}
+.tbtn{width:32px;height:32px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;}
+.tbtn:hover{color:var(--text);background:var(--fan-bg);}
+.tbtn.on{color:var(--text);background:var(--fan-bg);border-color:var(--border);}
+.tbtn svg{width:15px;height:15px;}
+
+.artist-bar{position:sticky;top:58px;z-index:29;background:rgba(250,250,248,0.88);backdrop-filter:blur(16px);display:flex;justify-content:center;padding:8px 20px 12px;border-bottom:1px solid var(--border);}
+.artist-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;padding:6px 2px;transition:opacity 0.2s;opacity:0.35;}
+.artist-item.active{opacity:1;}
+.artist-item:hover{opacity:0.75;}
+.artist-item .ring{width:56px;height:56px;border-radius:50%;padding:2px;border:1.5px solid transparent;transition:border 0.2s;}
+.artist-item.active .ring{border-color:var(--text);}
+.artist-item .avatar{width:100%;height:100%;border-radius:50%;object-fit:cover;background:var(--fan-bg);display:block;}
+.artist-item .lbl{font-size:11px;font-weight:500;letter-spacing:0.3px;white-space:nowrap;}
+.artist-item .cnt{font-size:10px;color:var(--text3);}
+
+.controls,.filter-row{position:sticky;background:var(--bg);padding:8px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);}
+.controls{top:171px;z-index:28;}
+.filter-row{top:213px;z-index:27;padding:6px 20px 8px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;flex-wrap:nowrap;}
+.filter-row::-webkit-scrollbar{display:none;}
+.date-inp{-webkit-appearance:none;appearance:none;width:auto;min-width:120px;flex:1;max-width:150px;}
+.date-inp::-webkit-calendar-picker-indicator{cursor:pointer;opacity:0.5;}
+.date-inp::-webkit-datetime-edit-fields-wrapper{padding:0;}
+.controls input{flex:1;height:34px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:0 12px;font-size:13px;color:var(--text);outline:none;font-family:inherit;transition:border 0.15s;}
+.controls input:focus,.filter-row input:focus{border-color:var(--accent);}
+.controls input::placeholder{color:var(--text3);}
+.date-inp{width:130px;height:34px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:0 10px;font-size:12px;color:var(--text);outline:none;font-family:inherit;flex:none;cursor:pointer;}
+.sep{color:var(--text3);font-size:12px;flex:none;}
+.chip{flex:none;font-size:11px;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text2);cursor:pointer;transition:all 0.12s;white-space:nowrap;}
+.chip:hover{color:var(--text);border-color:var(--text3);}
+.chip.on{background:var(--text);color:#fff;border-color:var(--text);}
+
+.info{position:sticky;top:217px;z-index:27;background:var(--bg);padding:6px 20px;font-size:10px;color:var(--text3);display:flex;justify-content:space-between;border-bottom:1px solid var(--border);}
+
+.msgs{flex:1;padding:16px 20px 40px;display:flex;flex-direction:column;gap:1px;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+
+.card{background:var(--card);padding:20px;border:1px solid var(--border);border-radius:10px;margin-bottom:14px;}
+.card-hdr{display:flex;align-items:center;gap:12px;margin-bottom:16px;}
+.card-hdr .thumb{width:40px;height:40px;border-radius:50%;object-fit:cover;background:var(--fan-bg);flex:none;}
+.card-hdr .meta h3{font-size:13px;font-weight:600;margin-bottom:1px;}
+.card-hdr .meta time{font-size:11px;color:var(--text3);}
+
+.reply{font-size:15px;line-height:1.75;font-weight:450;padding:0 0 0 16px;border-left:3px solid var(--accent);color:var(--text);}
+.fan-msg{position:relative;margin-top:10px;padding:0 0 0 16px;font-size:13px;line-height:1.6;font-style:italic;color:var(--text2);border-left:1.5px solid #d8d8d4;}
+.fan-msg+.reply{margin-top:14px;}
+.tl{margin-top:10px;padding:8px 12px 8px 16px;font-size:13px;line-height:1.6;color:var(--text2);background:#f6f6f3;border-radius:0 6px 6px 0;border-left:2px solid #e0e0da;}
+.tl .tl-badge{display:inline-block;font-size:9px;font-weight:600;color:var(--text3);background:var(--card);padding:1px 6px;border-radius:3px;margin-right:6px;border:1px solid var(--border);letter-spacing:0.3px;vertical-align:middle;position:relative;top:-1px;}
+.fan-tl{margin-top:8px;padding:6px 12px 6px 16px;font-size:12px;line-height:1.55;color:var(--text3);border-left:1.5px solid #e8e8e3;}
+.fan-tl .tl-badge{display:inline-block;font-size:9px;font-weight:600;color:var(--text3);background:var(--card);padding:1px 6px;border-radius:3px;margin-right:6px;border:1px solid var(--border);letter-spacing:0.3px;vertical-align:middle;position:relative;top:-1px;}
+
+.msg-img{display:block;max-width:100%;max-height:360px;border-radius:6px;cursor:pointer;border:1px solid var(--border);transition:opacity 0.15s;}
+.msg-img:hover{opacity:0.9;}
+
+.voice-player{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--fan-bg);border-radius:8px;margin-top:4px;max-width:320px;}
+.voice-play{width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:var(--card);cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;transition:all 0.15s;padding:0;}
+.voice-play:hover{border-color:var(--accent);}
+.voice-play svg{width:12px;height:12px;fill:none;stroke:var(--text);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;}
+.voice-bar-wrap{flex:1;height:20px;display:flex;align-items:center;cursor:pointer;}
+.voice-bar{width:100%;height:3px;background:var(--border);border-radius:2px;position:relative;overflow:hidden;}
+.voice-progress{position:absolute;left:0;top:0;height:100%;background:var(--accent);border-radius:2px;width:0%;pointer-events:none;}
+.voice-dur{font-size:11px;color:var(--text3);flex:none;min-width:32px;text-align:right;font-variant-numeric:tabular-nums;}
+
+.gallery-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;}
+.gallery-item{position:relative;cursor:pointer;overflow:hidden;border-radius:4px;aspect-ratio:1;background:var(--fan-bg);}
+.gallery-item img{width:100%;height:100%;object-fit:cover;transition:transform 0.2s;}
+.gallery-item:hover img{transform:scale(1.04);}
+.gallery-item .gi-date{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.55));color:#fff;font-size:10px;padding:6px 8px 4px;opacity:0;transition:opacity 0.2s;}
+.gallery-item:hover .gi-date{opacity:1;}
+
+.state-wrap,.err-card,.loader{text-align:center;padding:60px 20px;color:var(--text3);}
+.err-card{color:#c44;}
+.spinner{width:22px;height:22px;border:2px solid var(--border);border-top-color:var(--text3);border-radius:50%;margin:0 auto;animation:spin 0.7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+.load-more-wrap{text-align:center;padding:16px 0 24px;}
+.load-more-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 28px;font-size:12px;font-family:inherit;font-weight:500;color:var(--text2);background:var(--card);border:1px solid var(--border);border-radius:20px;cursor:pointer;transition:all 0.15s;}
+.load-more-btn:hover{color:var(--text);border-color:var(--text3);background:var(--fan-bg);}
+.load-more-btn:disabled{opacity:0.5;cursor:default;}
+.load-more-end{text-align:center;padding:16px 0 24px;font-size:11px;color:var(--text3);}
+
+.img-overlay{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.92);justify-content:center;align-items:center;flex-direction:column;}
+.img-overlay.show{display:flex;}
+.img-overlay img{max-width:92vw;max-height:80vh;object-fit:contain;border-radius:4px;}
+.img-overlay .ov-info{margin-top:16px;color:#fff;font-size:12px;opacity:0.7;display:flex;gap:16px;align-items:center;}
+.img-overlay .ov-btn{background:none;border:1px solid rgba(255,255,255,0.35);color:#fff;padding:6px 16px;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit;}
+.img-overlay .ov-btn:hover{background:rgba(255,255,255,0.12);}
+.img-overlay .ov-prev,.img-overlay .ov-next{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);border:none;color:#fff;width:40px;height:40px;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;}
+.img-overlay .ov-prev{left:16px;}.img-overlay .ov-next{right:16px;}
+
+
+
+.cal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 20px 10px;flex-wrap:wrap;gap:8px;}
+.cal-nav{display:flex;align-items:center;gap:6px;}
+.cal-nav .cm{font-size:15px;font-weight:600;letter-spacing:-0.2px;margin:0 8px;}
+.cal-nav .cal-today{font-size:11px;padding:3px 10px;}
+.cal-sum{display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
+.cal-sum .cs{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);}
+.cal-sum .cs b{color:var(--text);font-weight:600;}
+.cal-sum .dot{width:8px;height:8px;border-radius:50%;flex:none;}
+.cal-week{display:grid;grid-template-columns:repeat(7,1fr);padding:4px 20px 6px;}
+.cal-week .cw{font-size:10px;color:var(--text3);text-align:center;letter-spacing:1px;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;padding:0 20px 40px;}
+.cal-cell{aspect-ratio:1/1.12;border-radius:8px;border:1px solid var(--border);background:var(--card);position:relative;padding:5px 6px 6px;display:flex;flex-direction:column;cursor:pointer;transition:transform 0.12s,border-color 0.12s,box-shadow 0.12s;overflow:hidden;}
+.cal-cell:hover{border-color:var(--text3);transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,0.05);}
+.cal-cell.muted{background:transparent;border-color:transparent;pointer-events:none;}
+.cal-cell.today{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset;}
+.cal-cell.has{background:rgba(26,26,26,var(--ci,0));}
+.cal-cell .cc-top{display:flex;justify-content:space-between;align-items:flex-start;}
+.cal-cell .cc-d{font-size:10px;color:var(--text3);line-height:1;}
+.cal-cell.has .cc-d{color:var(--text2);}
+.cal-cell .cc-n{font-size:13px;font-weight:600;color:var(--text);line-height:1;}
+.cal-cell .cc-bar{display:flex;gap:1.5px;margin-top:auto;height:4px;align-items:flex-end;}
+.cal-cell .cc-seg{border-radius:2px;min-width:2px;height:100%;}
+
+#toast-ct{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:9999;pointer-events:none;display:flex;flex-direction:column;gap:6px;}
+.toast-msg{background:var(--text);color:#fff;padding:10px 22px;border-radius:20px;font-size:12px;text-align:center;animation:fadeUp 0.25s ease-out;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+.login-btn{height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text2);cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;transition:all 0.15s;flex:none;}.login-btn:hover{color:var(--text);border-color:var(--accent);}
+</style>
+</head>
+<body>
+<div id="app">
+<div class="topbar">
+<div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg>withMeu</div>
+<div class="spacer"></div>
+<button class="tbtn" id="btnGallery" title="Gallery" onclick="toggleGallery()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></button>
+<button class="tbtn" id="btnFilter" title="Filter" onclick="toggleFilter()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="4" y1="7" x2="20" y2="7"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="17" x2="14" y2="17"/></svg></button>
+<button class="tbtn" id="btnCal" title="Calendar (c)" onclick="toggleCalendar()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="17" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg></button>
+</div>
+<div class="artist-bar" id="artistBar"></div>
+<div class="controls" id="controls">
+<input type="text" id="tokenInp" placeholder="JWT token..." style="max-width:160px;" oninput="var v=this.value.trim();S.authToken=v;localStorage.setItem('withfan_token',v);"/><button class="login-btn" onclick="doLogin()">Login</button>
+<input type="text" id="searchInp" placeholder="Filter..." oninput="doSearch()"/>
+</div>
+<div class="controls filter-row" id="filterRow" style="display:none;position:sticky;top:199px;z-index:27;">
+<input type="date" class="date-inp" id="dateFrom" onchange="applyDateFilter()"/>
+<span class="sep" id="dateSep">—</span>
+<input type="date" class="date-inp" id="dateTo" onchange="applyDateFilter()"/>
+<span class="chip filter-chip" onclick="quickFilter('today')">Today</span>
+<span class="chip filter-chip" onclick="toggleTypeFilter('voice')">Voice</span>
+<span class="chip filter-chip all on" onclick="quickFilter('all')">All</span>
+</div>
+<div class="info" id="infoBar"><span id="infoL">Ready</span><span id="infoR"></span></div>
+<div class="msgs" id="msgArea"><div class="state-wrap"><p>Loading...</p></div></div>
+</div>
+
+<div class="img-overlay" id="imgOl">
+<button class="ov-prev" id="ovPrev" onclick="event.stopPropagation();navImg(-1)">‹</button>
+<button class="ov-next" id="ovNext" onclick="event.stopPropagation();navImg(1)">›</button>
+<img id="imgOlImg" src="" alt="" onclick="event.stopPropagation()"/>
+<div class="ov-info" id="ovInfo"></div>
+<button class="ov-btn" id="ovJump" onclick="event.stopPropagation();jumpToMsg()">View in timeline →</button>
+<div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:12px;cursor:pointer;" onclick="closeImg()">Close</div>
+</div>
+
+<div id="toast-ct"></div>
+
+<script>
+// ============== STATE ==============
+var ARTISTS=[{id:"12289",name:"ZHAN",kr:"지한"},{id:"12290",name:"IVI",kr:"이비"},{id:"12291",name:"SUA",kr:"수아"},{id:"12292",name:"RITZ",kr:"리츠"},{id:"12293",name:"CHOEUN",kr:"최은"},{id:"14433",name:"KANA",kr:"카나"}];
+var S={current:null,cache:{},profiles:{},searchQ:"",dateFrom:null,dateTo:null,typeFilter:null,filterOpen:false,galleryMode:false,galleryImages:[],galleryIdx:-1,galleryOffset:0,galleryHasMore:true,galleryLoading:false,galleryTotal:0,calMode:false,calYear:0,calMonth:0,calData:null,fetching:{},loadingMore:{},PAGE_SIZE:50,authToken:localStorage.getItem("withfan_token")||""};
+var TYPE_COLORS={text:"#2b2b2b",voice:"#6b8fce",image:"#d49a6a"};
+var TYPE_LABELS={text:"文字",voice:"语音",image:"图片"};
+var API_BASE=location.hostname==="localhost"?"":"https://YOUR_SUBDOMAIN.workers.dev";
+var _searchTimer=0;
+
+// ============== HELPERS ==============
+function esc(s){if(!s)return"";var d=document.createElement("div");d.textContent=s;return d.innerHTML;}
+function toast(t){var e=document.createElement("div");e.className="toast-msg";e.textContent=t;document.getElementById("toast-ct").appendChild(e);setTimeout(function(){e.remove();},2400);}
+function phSvg(){return"data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect fill="#eee" width="48" height="48" rx="24"/><circle cx="24" cy="18" r="8" fill="#ccc"/><ellipse cx="24" cy="44" rx="14" ry="12" fill="#ccc"/></svg>');}
+function ava(pid){var p=S.profiles[pid];if(p&&p.avatar&&p.avatar.startsWith("http"))return p.avatar;return phSvg();}
+function fmtTime(t){if(!t)return"";var iso=t.replace(" ","T")+"Z";var d=new Date(iso);if(isNaN(d.getTime()))return t.slice(0,19);var y=d.getFullYear(),mo=String(d.getMonth()+1).padStart(2,"0"),da=String(d.getDate()).padStart(2,"0"),h=String(d.getHours()).padStart(2,"0"),mi=String(d.getMinutes()).padStart(2,"0"),s=String(d.getSeconds()).padStart(2,"0");return y+"-"+mo+"-"+da+" "+h+":"+mi+":"+s;}
+function getMsgId(m){return String(m.messageId);}
+function qs(sel){return document.querySelector(sel);}
+function byId(id){return document.getElementById(id);}
+
+// ============== API CALLS ==============
+function doLogin(){var e=prompt("Email:");if(!e)return;var p=prompt("Password:");if(!p)return;var b=document.querySelector(".login-btn");b.textContent="...";b.disabled=true;fetch(API_BASE+"/api/login",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"email="+encodeURIComponent(e)+"&password="+encodeURIComponent(p)}).then(function(r){return r.json();}).then(function(d){b.textContent="Login";b.disabled=false;if(d.token){S.authToken=d.token;localStorage.setItem("withfan_token",d.token);byId("tokenInp").value=d.token;toast("Token saved");}else{toast("Login failed: "+(d.error||""));}}).catch(function(){b.textContent="Login";b.disabled=false;toast("Network error");});}
+
+function apiGet(path){var headers={};if(S.authToken)headers["X-WithFan-Auth"]=S.authToken;return fetch(API_BASE+path,{headers:headers}).then(function(r){return r.json();});}
+
+function loadProfiles(){
+  return apiGet("/api/profiles").then(function(d){
+    if(d.success)d.profiles.forEach(function(p){S.profiles[p.id]=p;});
+    renderArtists();
+  }).catch(function(e){console.error("profiles:",e);});
+}
+
+function buildQuery(extra){
+  extra=extra||{};
+  var p=["profileId="+S.current.id];
+  var limit=extra.limit||S.PAGE_SIZE;
+  p.push("limit="+limit);
+  var offset=extra.offset;
+  if(offset>0)p.push("offset="+offset);
+  if(S.dateFrom)p.push("dateFrom="+encodeURIComponent(S.dateFrom));
+  if(S.dateTo)p.push("dateTo="+encodeURIComponent(S.dateTo));
+  if(S.typeFilter)p.push("type="+encodeURIComponent(S.typeFilter));
+  if(S.searchQ)p.push("q="+encodeURIComponent(S.searchQ));
+  return "/api/messages?"+p.join("&");
+}
+
+function fetchMessages(pid, opts){
+  opts=opts||{};
+  var append=!!opts.append;
+  if(S.fetching[pid])return S.fetching[pid];
+  var a=ARTISTS.find(function(x){return x.id===pid;});
+
+  S.fetching[pid]=apiGet(buildQuery(opts)).then(function(d){
+    if(!d.success)throw new Error(d.error||"error");
+    S.profiles[pid]=Object.assign({},S.profiles[pid],d.profile);
+
+    var newMsgs=d.messages||[];
+    if(append&&S.cache[pid]){
+      var exist={};
+      S.cache[pid].messages.forEach(function(m){exist[getMsgId(m)]=true;});
+      var fresh=newMsgs.filter(function(m){return !exist[getMsgId(m)];});
+      S.cache[pid].messages=S.cache[pid].messages.concat(fresh);
+      S.cache[pid].hasMore=d.hasMore;
+      S.cache[pid].filteredTotal=d.profile.filteredTotal;
+    }else{
+      S.cache[pid]={profile:d.profile,messages:newMsgs,hasMore:d.hasMore,total:d.profile.total,filteredTotal:d.profile.filteredTotal};
+    }
+
+    renderArtists();highlight(pid);
+    if(S.current&&S.current.id===pid){
+      if(S.galleryMode)renderGallery();
+      else if(append)appendMsgs(newMsgs);
+      else renderMsgs(S.cache[pid].messages);
+      updateInfo(S.cache[pid]);
+      var oldLen=append?(S.cache[pid].messages.length-newMsgs.length):0;
+      if(newMsgs.length>0&&!append&&!S.galleryMode)toast((a?a.name:pid)+": loaded "+newMsgs.length+" messages");
+    }
+    return d;
+  }).catch(function(err){
+    console.error("fetchMessages:",pid,err);
+    if(S.current&&S.current.id===pid&&(!S.cache[pid]||!S.cache[pid].messages.length)){
+      byId("msgArea").innerHTML='<div class="err-card">Failed to load<br/><small>'+esc(err.message||err)+'</small></div>';
+    }
+  }).finally(function(){delete S.fetching[pid];});
+  return S.fetching[pid];
+}
+
+function loadMore(){
+  if(!S.current)return;
+  var pid=S.current.id;
+  if(S.loadingMore[pid])return;
+  var c=S.cache[pid];
+  if(!c||!c.hasMore)return;
+  S.loadingMore[pid]=true;
+  var btn=byId("btnLoadMore");
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner" style="width:14px;height:14px;border-width:1.5px;display:inline-block;"></span> Loading...';}
+  var offset=c.messages.length;
+  fetchMessages(pid,{append:true,offset:offset}).finally(function(){
+    delete S.loadingMore[pid];
+  });
+}
+
+// ============== RENDER ==============
+function renderArtists(){
+  byId("artistBar").innerHTML=ARTISTS.map(function(a){
+    var p=S.profiles[a.id],cnt=p?p.messageCount:null;
+    return'<div class="artist-item" id="art-'+a.id+'" onclick="pick(\''+a.id+'\')"><div class="ring"><img class="avatar" src="'+ava(a.id)+'" alt="'+a.name+'" onerror="this.src=\''+phSvg()+'\'" loading="lazy"/></div><span class="lbl">'+a.name+'</span>'+(cnt!=null?'<span class="cnt">'+cnt+'</span>':"")+'</div>';
+  }).join("");
+}
+function highlight(pid){document.querySelectorAll(".artist-item").forEach(function(e){e.classList.remove("active");});var el=byId("art-"+pid);if(el)el.classList.add("active");}
+function updateInfo(cacheEntry){
+  if(!cacheEntry){byId("infoL").textContent="加载中...";byId("infoR").textContent="";return;}
+  var t=cacheEntry.total||(cacheEntry.profile?cacheEntry.profile.total:0);
+  var ft=cacheEntry.filteredTotal;
+  var hasFilter=!!(S.searchQ||S.dateFrom||S.dateTo||S.typeFilter);
+  var loaded=cacheEntry.messages?cacheEntry.messages.length:0;
+  var syncAt=cacheEntry.profile?cacheEntry.profile.lastSyncAt||"":"";
+  if(hasFilter&&ft!==undefined&&ft!==t){
+    byId("infoL").textContent="筛选 "+ft+"/"+t+" 条 (已加载"+loaded+") · 最后同步 "+syncAt.slice(0,10);
+  }else{
+    byId("infoL").textContent="共 "+t+" 条消息 (已加载"+loaded+") · 最后同步 "+syncAt.slice(0,10);
+  }
+  var lf=cacheEntry.profile?cacheEntry.profile.lastFetched:null;
+  byId("infoR").textContent=lf?"请求时间 "+new Date(lf).toLocaleString().slice(0,16):"";
+}
+
+function buildMsgHTML(m){
+  var isImg=m.type==="image";
+  var hasFan=m.replyContent&&m.replyContent!=="null"&&m.replyContent!=="";
+  var fanHtml="",bodyHtml="",tlHtml="";
+  if(hasFan){
+    fanHtml='<div class="fan-msg">'+esc(m.replyContent)+'</div>';
+    if(m.fanTranslation)fanHtml+='<div class="fan-tl"><span class="tl-badge">译</span>'+esc(m.fanTranslation)+'</div>';
+  }
+  if(isImg){
+    bodyHtml='<img class="msg-img" src="'+esc(m.content)+'" alt="image" loading="lazy" onclick="event.stopPropagation();openImg(\x27'+esc(m.content)+'\x27,\x27'+m.messageId+'\x27,\x27'+esc(m.createdAt||"")+'\x27)" onerror="this.style.display=\x27none\x27"/>';
+  }else if(m.type==="voice"){
+    bodyHtml='<div class="voice-player"><button class="voice-play" data-src="'+esc(m.content)+'"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg></button><div class="voice-bar-wrap"><div class="voice-bar"><div class="voice-progress"></div></div></div><span class="voice-dur">0:00</span><audio class="voice-audio" src="'+esc(m.content)+'" preload="metadata"></audio></div>';
+  }else{
+    bodyHtml='<div class="reply">'+esc(m.content)+'</div>';
+  }
+  if(m.translation&&!isImg)tlHtml='<div class="tl"><span class="tl-badge">译</span>'+esc(m.translation)+'</div>';
+  return'<div class="card" data-msgid="'+getMsgId(m)+'"><div class="card-hdr"><img class="thumb" src="'+(m.profileImage||ava(m.profileId))+'" alt="" onerror="this.src=\x27'+ava(m.profileId)+'\x27" loading="lazy"/><div class="meta"><h3>'+esc(m.nickname)+'</h3><time>'+fmtTime(m.createdAt)+'</time></div></div>'+fanHtml+bodyHtml+tlHtml+'</div>';
+}
+
+function renderMsgs(msgs){
+  var area=byId("msgArea");
+  if(!msgs||msgs.length===0){
+    area.innerHTML='<div class="state-wrap"><p>'+(S.searchQ||S.dateFrom||S.dateTo||S.typeFilter?"No results":"No messages yet")+'</p></div>';
+    return;
+  }
+  var html=msgs.map(function(m){return buildMsgHTML(m);}).join("");
+  html+=buildLoadMoreFooter();
+  area.innerHTML=html;
+  area.scrollTop=0;
+}
+
+function appendMsgs(newMsgs){
+  var area=byId("msgArea");
+  // Remove existing footer
+  var footer=byId("loadMoreFooter");
+  if(footer)footer.remove();
+  // Append new message cards
+  var frag=document.createDocumentFragment();
+  var wrap=document.createElement("div");
+  wrap.innerHTML=newMsgs.map(function(m){return buildMsgHTML(m);}).join("");
+  while(wrap.firstChild)frag.appendChild(wrap.firstChild);
+  area.appendChild(frag);
+  // Re-add footer
+  var footerHtml=buildLoadMoreFooter();
+  if(footerHtml){
+    var tmp=document.createElement("div");
+    tmp.innerHTML=footerHtml;
+    area.appendChild(tmp.firstChild);
+  }
+}
+
+function buildLoadMoreFooter(){
+  if(!S.current)return"";
+  var c=S.cache[S.current.id];
+  if(!c)return"";
+  if(c.hasMore){
+    return'<div class="load-more-wrap" id="loadMoreFooter"><button class="load-more-btn" id="btnLoadMore" onclick="loadMore()">Load more</button></div>';
+  }else if(c.messages&&c.messages.length>0&&c.filteredTotal>0){
+    return'<div class="load-more-end" id="loadMoreFooter">— All '+c.filteredTotal+' messages loaded —</div>';
+  }
+  return"";
+}
+
+// ============== PICK ==============
+function pick(pid){
+  var a=ARTISTS.find(function(x){return x.id===pid;});if(!a)return;
+  S.current=a;S.galleryMode=false;byId("btnGallery").classList.remove("on");
+  highlight(pid);
+  if(S.calMode){fetchCalendar();return;}
+  // If we already have cached data with matching filters, reuse it
+  if(S.cache[pid]){
+    renderMsgs(S.cache[pid].messages);
+    updateInfo(S.cache[pid]);
+  }else{
+    byId("msgArea").innerHTML='<div class="loader"><div class="spinner"></div></div>';
+    updateInfo(null);
+  }
+  fetchMessages(pid);
+}
+
+// ============== SEARCH & FILTER ==============
+function doSearch(){
+  clearTimeout(_searchTimer);
+  _searchTimer=setTimeout(function(){
+    S.searchQ=byId("searchInp").value.trim();
+    exitGallery();
+    if(S.current)fetchMessages(S.current.id);
+  },300);
+}
+
+function exitGallery(){if(S.galleryMode){S.galleryMode=false;byId("btnGallery").classList.remove("on");}}
+
+function toggleFilter(){
+  S.filterOpen=!S.filterOpen;
+  byId("filterRow").style.display=S.filterOpen?"flex":"none";
+  byId("btnFilter").classList.toggle("on",S.filterOpen);
+  if(S.filterOpen)updateChips();
+}
+
+function applyDateFilter(){
+  S.dateFrom=byId("dateFrom").value||null;
+  S.dateTo=byId("dateTo").value||null;
+  updateChips();exitGallery();
+  if(S.current)fetchMessages(S.current.id);
+}
+
+function quickFilter(p){
+  var now=new Date(),today=now.toISOString().slice(0,10);
+  if(p==="today"){S.dateFrom=today;S.dateTo=today;}
+  else if(p==="3d"){S.dateFrom=new Date(now-3*864e5).toISOString().slice(0,10);S.dateTo=today;}
+  else if(p==="7d"){S.dateFrom=new Date(now-7*864e5).toISOString().slice(0,10);S.dateTo=today;}
+  else{S.dateFrom=null;S.dateTo=null;S.typeFilter=null;}
+  byId("dateFrom").value=S.dateFrom||"";byId("dateTo").value=S.dateTo||"";
+  updateChips();exitGallery();
+  if(S.current)fetchMessages(S.current.id);
+}
+
+function toggleTypeFilter(type){
+  S.typeFilter=S.typeFilter===type?null:type;
+  updateChips();exitGallery();
+  if(S.current)fetchMessages(S.current.id);
+}
+
+function updateChips(){
+  document.querySelectorAll(".filter-chip").forEach(function(c){c.classList.remove("on");});
+  if(S.typeFilter){document.querySelectorAll(".filter-chip").forEach(function(c){if(c.textContent.indexOf("Voice")>=0)c.classList.add("on");});}
+  if(!S.dateFrom&&!S.dateTo&&!S.typeFilter){var ac=document.querySelector(".filter-chip.all");if(ac)ac.classList.add("on");}
+  else if(S.dateFrom&&S.dateFrom===S.dateTo&&S.dateFrom===new Date().toISOString().slice(0,10)){document.querySelectorAll(".filter-chip").forEach(function(c){if(c.textContent.indexOf("Today")>=0)c.classList.add("on");});}
+}
+
+// ============== GALLERY ==============
+function toggleGallery(){
+  S.galleryMode=!S.galleryMode;
+  byId("btnGallery").classList.toggle("on",S.galleryMode);
+  if(S.galleryMode){
+    if(S.calMode){S.calMode=false;byId("btnCal").classList.remove("on");}
+    S.galleryImages=[];S.galleryOffset=0;S.galleryHasMore=true;S.galleryTotal=0;
+    fetchGalleryImages();
+  }else if(S.current&&S.cache[S.current.id]){
+    renderMsgs(S.cache[S.current.id].messages);
+  }
+}
+
+function fetchGalleryImages(){
+  if(!S.current||S.galleryLoading||!S.galleryHasMore)return;
+  S.galleryLoading=true;
+  var path="/api/messages?profileId="+S.current.id+"&type=image&limit=30&offset="+S.galleryOffset;
+  if(S.dateFrom)path+="&dateFrom="+encodeURIComponent(S.dateFrom);
+  if(S.dateTo)path+="&dateTo="+encodeURIComponent(S.dateTo);
+  if(S.searchQ)path+="&q="+encodeURIComponent(S.searchQ);
+  apiGet(path).then(function(d){
+    if(!d.success)return;
+    S.galleryTotal=d.profile.filteredTotal;
+    S.galleryHasMore=d.hasMore;
+    var imgs=d.messages||[];
+    S.galleryImages=S.galleryImages.concat(imgs);
+    S.galleryOffset=S.galleryImages.length;
+    if(S.galleryOffset===0)renderGalleryEmpty();
+    else if(S.galleryOffset===imgs.length)renderGallery();
+    else appendGalleryImages(imgs);
+  }).catch(function(e){
+    console.error("gallery:",e);
+    if(S.galleryImages.length===0)renderGalleryEmpty();
+  }).finally(function(){S.galleryLoading=false;});
+}
+
+function loadMoreGallery(){
+  if(!S.galleryMode||S.galleryLoading||!S.galleryHasMore)return;
+  fetchGalleryImages();
+}
+
+function renderGalleryEmpty(){
+  byId("msgArea").innerHTML='<div class="state-wrap"><p>'+S.current.name+' 暂无图片</p></div>';
+}
+
+function renderGallery(){
+  var html='<div class="gallery-grid">'+S.galleryImages.map(function(m,i){
+    return'<div class="gallery-item" onclick="openGalleryImg('+i+')"><img src="'+esc(m.content)+'" alt="" loading="lazy" onerror="this.parentElement.style.display=\x27none\x27"/><div class="gi-date">'+fmtTime(m.createdAt).slice(0,16)+'</div></div>';
+  }).join("")+'</div>';
+  html+=buildGalleryFooter();
+  byId("msgArea").innerHTML=html;
+  byId("msgArea").scrollTop=0;
+}
+
+function appendGalleryImages(newImgs){
+  var grid=byId("msgArea").querySelector(".gallery-grid");
+  if(!grid)return;
+  var footer=byId("galleryFooter");
+  if(footer)footer.remove();
+  var html=newImgs.map(function(m,i){
+    var idx=S.galleryImages.length-newImgs.length+i;
+    return'<div class="gallery-item" onclick="openGalleryImg('+idx+')"><img src="'+esc(m.content)+'" alt="" loading="lazy" onerror="this.parentElement.style.display=\x27none\x27"/><div class="gi-date">'+fmtTime(m.createdAt).slice(0,16)+'</div></div>';
+  }).join("");
+  grid.insertAdjacentHTML("beforeend",html);
+  var footerHtml=buildGalleryFooter();
+  if(footerHtml){
+    var tmp=document.createElement("div");
+    tmp.innerHTML=footerHtml;
+    byId("msgArea").appendChild(tmp.firstChild);
+  }
+}
+
+function buildGalleryFooter(){
+  if(S.galleryLoading){
+    return'<div class="load-more-wrap" id="galleryFooter"><span class="spinner" style="width:16px;height:16px;border-width:1.5px;display:inline-block;"></span></div>';
+  }
+  if(S.galleryHasMore){
+    return'<div class="load-more-wrap" id="galleryFooter"><button class="load-more-btn" onclick="loadMoreGallery()">加载更多图片 ('+S.galleryImages.length+'/'+S.galleryTotal+')</button></div>';
+  }
+  if(S.galleryImages.length>0){
+    return'<div class="load-more-end" id="galleryFooter">— 全部 '+S.galleryTotal+' 张图片已加载 —</div>';
+  }
+  return"";
+}
+
+function openGalleryImg(idx){S.galleryIdx=idx;var m=S.galleryImages[idx];byId("imgOlImg").src=m.content;byId("ovInfo").textContent=fmtTime(m.createdAt);byId("imgOl").classList.add("show");updateOvArrows();}
+function openImg(url,msgId,createdAt){S.galleryIdx=S.galleryImages.findIndex(function(m){return String(m.messageId)===msgId;});byId("imgOlImg").src=url;byId("ovInfo").textContent=fmtTime(createdAt);byId("imgOl").classList.add("show");updateOvArrows();}
+function navImg(dir){var n=(S.galleryIdx+dir+S.galleryImages.length)%S.galleryImages.length;S.galleryIdx=n;var m=S.galleryImages[n];byId("imgOlImg").src=m.content;byId("ovInfo").textContent=fmtTime(m.createdAt);updateOvArrows();}
+function updateOvArrows(){var t=S.galleryImages.length;byId("ovPrev").style.display=t>1?"flex":"none";byId("ovNext").style.display=t>1?"flex":"none";}
+function jumpToMsg(){var m=S.galleryImages[S.galleryIdx];if(!m)return;closeImg();S.galleryMode=false;byId("btnGallery").classList.remove("on");S.searchQ="";S.dateFrom=null;S.dateTo=null;S.typeFilter=null;byId("searchInp").value="";byId("dateFrom").value="";byId("dateTo").value="";updateChips();if(S.current)fetchMessages(S.current.id).then(function(){setTimeout(function(){var el=qs('.card[data-msgid="'+m.messageId+'"]');if(el){el.scrollIntoView({behavior:"smooth",block:"center"});el.style.borderColor="var(--accent)";setTimeout(function(){el.style.borderColor="";},1500);}},200);});}
+function closeImg(){byId("imgOl").classList.remove("show");}
+
+// ============== CALENDAR ==============
+function tColor(t){return TYPE_COLORS[t]||"#9a9a96";}
+function tLabel(t){return TYPE_LABELS[t]||t;}
+function toggleCalendar(){
+  S.calMode=!S.calMode;
+  byId("btnCal").classList.toggle("on",S.calMode);
+  if(S.calMode){
+    if(S.galleryMode){S.galleryMode=false;byId("btnGallery").classList.remove("on");}
+    var now=new Date();S.calYear=now.getUTCFullYear();S.calMonth=now.getUTCMonth()+1;
+    fetchCalendar();
+  }else if(S.current&&S.cache[S.current.id]){
+    renderMsgs(S.cache[S.current.id].messages);
+    updateInfo(S.cache[S.current.id]);
+  }
+}
+function fetchCalendar(){
+  if(!S.current)return;
+  byId("msgArea").innerHTML='<div class="loader"><div class="spinner"></div></div>';
+  var path="/api/stats?profileId="+S.current.id+"&year="+S.calYear+"&month="+S.calMonth;
+  apiGet(path).then(function(d){
+    if(!d.success)return;
+    S.calData=d;
+    renderCalendar();
+  }).catch(function(e){
+    console.error("cal:",e);
+    byId("msgArea").innerHTML='<div class="err-card">Failed to load<br/><small>'+esc(e.message||e)+'</small></div>';
+  });
+}
+function calPrev(){S.calMonth--;if(S.calMonth<1){S.calMonth=12;S.calYear--;}fetchCalendar();}
+function calNext(){S.calMonth++;if(S.calMonth>12){S.calMonth=1;S.calYear++;}fetchCalendar();}
+function calToday(){var now=new Date();S.calYear=now.getUTCFullYear();S.calMonth=now.getUTCMonth()+1;fetchCalendar();}
+function renderCalendar(){
+  var d=S.calData||{summary:{total:0,types:{}},days:[]};
+  var sum=d.summary||{total:0,types:{}};
+  var y=S.calYear,mo=S.calMonth;
+  var daysMap={};(d.days||[]).forEach(function(dd){daysMap[dd.date]=dd;});
+  var maxT=0;Object.keys(daysMap).forEach(function(k){if(daysMap[k].total>maxT)maxT=daysMap[k].total;});
+  var firstDay=new Date(Date.UTC(y,mo-1,1)).getUTCDay();
+  var daysInMonth=new Date(Date.UTC(y,mo,0)).getUTCDate();
+  var todayStr=(function(){var n=new Date();return n.getUTCFullYear()+"-"+String(n.getUTCMonth()+1).padStart(2,"0")+"-"+String(n.getUTCDate()).padStart(2,"0");})();
+  var pad=function(n){return String(n).padStart(2,"0");};
+  var cells="";
+  for(var i=0;i<firstDay;i++)cells+='<div class="cal-cell muted"></div>';
+  for(var day=1;day<=daysInMonth;day++){
+    var date=y+"-"+pad(mo)+"-"+pad(day);
+    var info=daysMap[date];
+    var total=info?info.total:0;
+    var cls="cal-cell";
+    var style="";
+    var inner='<div class="cc-top"><span class="cc-d">'+day+'</span>'+(total>0?'<span class="cc-n">'+total+'</span>':"")+'</div>';
+    if(info&&total>0){
+      cls+=" has";
+      var ci=0.05+0.10*Math.sqrt(total/(maxT||1));
+      style=' style="--ci:'+ci.toFixed(3)+'"';
+      var segs="";
+      Object.keys(info.types).forEach(function(t){
+        var c=info.types[t];if(!c)return;
+        var w=Math.max(2,Math.round(c/total*100));
+        segs+='<span class="cc-seg" style="width:'+w+'%;background:'+tColor(t)+'" title="'+tLabel(t)+': '+c+'"></span>';
+      });
+      inner+='<div class="cc-bar">'+segs+'</div>';
+    }
+    if(date===todayStr)cls+=" today";
+    cells+='<div class="'+cls+'"'+style+' title="'+date+(total?(": "+total+" 条"):"")+'" onclick="calPickDay(\''+date+'\')">'+inner+'</div>';
+  }
+  var sumHtml=Object.keys(sum.types||{}).map(function(t){
+    return'<span class="cs"><i class="dot" style="background:'+tColor(t)+'"></i>'+tLabel(t)+' '+sum.types[t]+'</span>';
+  }).join("")+'<span class="cs"><b>共 '+sum.total+' 条</b></span>';
+  var html='<div class="cal-head"><div class="cal-nav"><button class="tbtn" onclick="calPrev()">‹</button><span class="cm">'+y+'年'+mo+'月</span><button class="tbtn" onclick="calNext()">›</button><button class="tbtn cal-today" onclick="calToday()">今</button></div><div class="cal-sum">'+sumHtml+'</div></div>';
+  html+='<div class="cal-week">'+"日一二三四五六".split("").map(function(w){return'<div class="cw">'+w+'</div>';}).join("")+'</div>';
+  html+='<div class="cal-grid">'+cells+'</div>';
+  byId("msgArea").innerHTML=html;
+  byId("msgArea").scrollTop=0;
+  updateInfoCal();
+}
+function updateInfoCal(){
+  if(!S.current){return;}
+  var p=S.profiles[S.current.id]||{};
+  byId("infoL").textContent=(S.calYear||"?")+"年"+(S.calMonth||"?")+"月 日历视图";
+  byId("infoR").textContent=p.lastFetched?("请求时间 "+new Date(p.lastFetched).toLocaleString().slice(0,16)):"";
+}
+function calPickDay(date){
+  S.calMode=false;byId("btnCal").classList.remove("on");
+  S.searchQ="";S.typeFilter=null;S.dateFrom=date;S.dateTo=date;
+  byId("searchInp").value="";byId("dateFrom").value=date;byId("dateTo").value=date;
+  updateChips();exitGallery();
+  if(S.current)fetchMessages(S.current.id);
+}
+
+// ============== KEYBOARD ==============
+document.addEventListener("keydown",function(e){
+  if(e.target.closest("input,textarea"))return;
+  var n=parseInt(e.key);if(n>=1&&n<=5){pick(ARTISTS[n-1].id);return;}
+  if(e.key==="/"){e.preventDefault();byId("searchInp").focus();}
+  else if(e.key==="g")toggleGallery();
+  else if(e.key==="f")toggleFilter();
+  else if(e.key==="c")toggleCalendar();
+  else if(e.key==="Escape"){closeImg();}
+});
+
+// ============== VOICE PLAYER ==============
+byId("msgArea").addEventListener("click",function(e){
+  var btn=e.target.closest(".voice-play");if(!btn)return;e.stopPropagation();
+  var player=btn.closest(".voice-player");
+  var audio=player.querySelector(".voice-audio");
+  var bar=player.querySelector(".voice-progress");
+  var dur=player.querySelector(".voice-dur");
+  var svg=btn.querySelector("svg");
+  if(audio.paused){
+    document.querySelectorAll(".voice-audio").forEach(function(a){if(a!==audio){a.pause();var p=a.closest(".voice-player");if(p){p.querySelector(".voice-play").innerHTML='<svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg>';p.querySelector(".voice-progress").style.width="0%";p.querySelector(".voice-dur").textContent="0:00";}}});
+    audio.play();
+    btn.innerHTML='<svg viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+    audio.ontimeupdate=function(){var pct=audio.duration?(audio.currentTime/audio.duration*100):0;bar.style.width=pct+"%";var m=Math.floor(audio.currentTime/60),s=Math.floor(audio.currentTime%60);dur.textContent=m+":"+String(s).padStart(2,"0");};
+    audio.onended=function(){btn.innerHTML='<svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg>';bar.style.width="0%";dur.textContent="0:00";};
+    audio.onloadedmetadata=function(){var m=Math.floor(audio.duration/60),s=Math.floor(audio.duration%60);dur.textContent="0:00 / "+m+":"+String(s).padStart(2,"0");};
+  }else{
+    audio.pause();
+    btn.innerHTML='<svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg>';
+  }
+});
+
+// Click progress bar to seek
+byId("msgArea").addEventListener("click",function(e){
+  var wrap=e.target.closest(".voice-bar-wrap");if(!wrap)return;e.stopPropagation();
+  var player=wrap.closest(".voice-player");
+  var audio=player.querySelector(".voice-audio");
+  if(!audio.duration)return;
+  var rect=wrap.getBoundingClientRect();
+  var pct=(e.clientX-rect.left)/rect.width;
+  audio.currentTime=pct*audio.duration;
+});
+
+// ============== INIT ==============
+console.log("[withMeu] init");
+loadProfiles().then(function(){
+  console.log("[withMeu] profiles loaded, picking ZHAN");
+  pick("12289");
+}).catch(function(e){
+  console.error("[withMeu] init failed:",e);
+  byId("msgArea").innerHTML='<div class="err-card">Init failed: '+esc(e.message||e)+'</div>';
+});
+byId("tokenInp").value=S.authToken;
+</script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Auth config (contains live token — copy config.example.json to config.json)
+config.json
+
+# SQLite runtime (created on first run from inline schema in server.js)
+data.db
+data.db-shm
+data.db-wal
+
+# Cloudflare / Wrangler
+.wrangler/
+.dev.vars
+
+# Build output
+dist/
+
+# Logs & temp
+*.log
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+
+# AI tooling scaffolding (do not track)
+.agents/
+.claude/
+.kiro/
+.trae/
+skills/
+skills-lock.json

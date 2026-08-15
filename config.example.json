@@ -1,0 +1,4 @@
+{
+  "authorization": "your-withfan-jwt-token-here",
+  "refreshToken": "your-withfan-refresh-token-here"
+}

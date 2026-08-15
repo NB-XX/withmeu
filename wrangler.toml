@@ -1,0 +1,17 @@
+name = "withmeu"
+main = "worker.js"
+compatibility_date = "2025-06-11"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "withmeu-db"
+database_id = "your-d1-database-id" # fill in with the ID returned by `wrangler d1 create withmeu-db`
+
+[triggers]
+crons = ["*/3 * * * *"]
+
+[assets]
+directory = "./public"
+
+[env.production]
+# Add production vars here
