@@ -484,12 +484,27 @@ async function handleRequest(request, env, ctx) {
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, OPTIONS",
-        "Access-Control-Allow-Headers": "X-WithFan-Auth, Content-Type",
+        "Access-Control-Allow-Headers": "X-Access-Password, X-WithFan-Auth, Content-Type",
       },
     });
   }
 
   try {
+    // Access status — always public; tells the client whether a password is required
+    if (pathname === "/api/auth/status" && method === "GET") {
+      return json({ success: true, passwordRequired: !!(env.ACCESS_PASSWORD && env.ACCESS_PASSWORD.trim()) });
+    }
+
+    // Access-password gate. When ACCESS_PASSWORD is configured (non-empty),
+    // every other API route requires it via the X-Access-Password header.
+    // If left unset or empty the site is open (no password needed).
+    if (env.ACCESS_PASSWORD && env.ACCESS_PASSWORD.trim()) {
+      const provided = request.headers.get("X-Access-Password") || "";
+      if (provided !== env.ACCESS_PASSWORD) {
+        return json({ success: false, error: "password_required", passwordRequired: true }, 401);
+      }
+    }
+
     const auth = getAuth(request);
 
     // API routes

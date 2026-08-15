@@ -12,6 +12,7 @@ A minimal web viewer for [withFan](https://withfan.co) artist messages — brows
 - **Full-text search** — search across original text and translations
 - **SQLite storage** — all messages and translations persisted locally, instant loading after first sync
 - **Auto-refresh** — polls for new messages every 10 minutes in the background
+- **Optional access password** — protect the viewer with a password via the `ACCESS_PASSWORD` variable (unset = open access)
 
 ## Architecture
 
@@ -49,13 +50,20 @@ Open **http://localhost:3456** in your browser.
 
 ### Configure Auth
 
-The app reads its withFan authorization token from `config.json` at runtime (no token is hardcoded in `server.js`). To set yours up:
+**withFan token (server-side, for data sync):** the app reads its withFan authorization token from `config.json` at runtime (no token is hardcoded in `server.js`). To set yours up:
 
 1. Copy `config.example.json` to `config.json`.
 2. Open `config.json` and fill in your withFan JWT (and refresh token, if you have one).
 3. Restart the server.
 
-`config.json` is gitignored and must never be committed. You can also override the token per-session from the **⚙ Settings** panel (press `,`) — the value you paste there is stored in your browser's `localStorage` and sent to the server with each request.
+`config.json` is gitignored and must never be committed.
+
+**Site access password (optional):** by default the viewer is open. To require a password to view the site, set the `ACCESS_PASSWORD` variable:
+
+- Cloudflare Worker: `npx wrangler secret put ACCESS_PASSWORD`
+- Local `server.js`: `ACCESS_PASSWORD=yourpass node server.js`
+
+When set, visitors see a password prompt and all `/api/*` routes require the `X-Access-Password` header. Leave it unset or empty for open access.
 
 ## Keyboard Shortcuts
 
@@ -65,9 +73,8 @@ The app reads its withFan authorization token from `config.json` at runtime (no 
 | `/` | Focus search |
 | `F` | Toggle date filter panel |
 | `G` | Toggle image gallery |
-| `R` | Force refresh |
-| `,` | Open settings |
-| `Esc` | Close overlay / settings |
+| `C` | Toggle calendar |
+| `Esc` | Close image overlay |
 
 ## Database
 

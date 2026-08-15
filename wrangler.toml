@@ -13,5 +13,10 @@ crons = ["*/3 * * * *"]
 [assets]
 directory = "./public"
 
+# Site access password. Leave unset (or empty) for open access (no password).
+# Recommended: set as a secret so it is not stored in plaintext:
+#   wrangler secret put ACCESS_PASSWORD
+# For local dev with server.js, set the same env var:
+#   ACCESS_PASSWORD=... node server.js
 [env.production]
 # Add production vars here

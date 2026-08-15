@@ -130,7 +130,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR","Pin
 #toast-ct{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:9999;pointer-events:none;display:flex;flex-direction:column;gap:6px;}
 .toast-msg{background:var(--text);color:#fff;padding:10px 22px;border-radius:20px;font-size:12px;text-align:center;animation:fadeUp 0.25s ease-out;}
 @keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
-.login-btn{height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text2);cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;transition:all 0.15s;flex:none;}.login-btn:hover{color:var(--text);border-color:var(--accent);}
+.gate{display:none;position:fixed;inset:0;z-index:300;background:rgba(250,250,248,0.97);justify-content:center;align-items:center;}
+.gate.show{display:flex;}
+.gate-card{display:flex;flex-direction:column;gap:12px;width:280px;}
+.gate-title{font-size:18px;font-weight:600;letter-spacing:-0.3px;text-align:center;}
+.gate-inp{height:40px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:0 14px;font-size:14px;color:var(--text);outline:none;font-family:inherit;}
+.gate-inp:focus{border-color:var(--accent);}
+.gate-btn{height:40px;border:none;border-radius:8px;background:var(--text);color:#fff;font-size:14px;font-family:inherit;font-weight:500;cursor:pointer;}
+.gate-btn:disabled{opacity:0.5;}
+.gate-err{font-size:12px;color:#c44;text-align:center;min-height:14px;}
 </style>
 </head>
 <body>
@@ -144,7 +152,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR","Pin
 </div>
 <div class="artist-bar" id="artistBar"></div>
 <div class="controls" id="controls">
-<input type="text" id="tokenInp" placeholder="JWT token..." style="max-width:160px;" oninput="var v=this.value.trim();S.authToken=v;localStorage.setItem('withfan_token',v);"/><button class="login-btn" onclick="doLogin()">Login</button>
 <input type="text" id="searchInp" placeholder="Filter..." oninput="doSearch()"/>
 </div>
 <div class="controls filter-row" id="filterRow" style="display:none;position:sticky;top:199px;z-index:27;">
@@ -168,12 +175,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR","Pin
 <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:12px;cursor:pointer;" onclick="closeImg()">Close</div>
 </div>
 
+<div class="gate" id="accessGate">
+<form class="gate-card" onsubmit="event.preventDefault();submitAccess()">
+<div class="gate-title">withMeu</div>
+<input type="password" class="gate-inp" id="gateInp" placeholder="访问密码" autocomplete="current-password"/>
+<button type="submit" class="gate-btn" id="gateBtn">进入</button>
+<div class="gate-err" id="gateErr"></div>
+</form>
+</div>
+
 <div id="toast-ct"></div>
 
 <script>
 // ============== STATE ==============
 var ARTISTS=[{id:"12289",name:"ZHAN",kr:"지한"},{id:"12290",name:"IVI",kr:"이비"},{id:"12291",name:"SUA",kr:"수아"},{id:"12292",name:"RITZ",kr:"리츠"},{id:"12293",name:"CHOEUN",kr:"최은"},{id:"14433",name:"KANA",kr:"카나"}];
-var S={current:null,cache:{},profiles:{},searchQ:"",dateFrom:null,dateTo:null,typeFilter:null,filterOpen:false,galleryMode:false,galleryImages:[],galleryIdx:-1,galleryOffset:0,galleryHasMore:true,galleryLoading:false,galleryTotal:0,calMode:false,calYear:0,calMonth:0,calData:null,fetching:{},loadingMore:{},PAGE_SIZE:50,authToken:localStorage.getItem("withfan_token")||""};
+var S={current:null,cache:{},profiles:{},searchQ:"",dateFrom:null,dateTo:null,typeFilter:null,filterOpen:false,galleryMode:false,galleryImages:[],galleryIdx:-1,galleryOffset:0,galleryHasMore:true,galleryLoading:false,galleryTotal:0,calMode:false,calYear:0,calMonth:0,calData:null,fetching:{},loadingMore:{},PAGE_SIZE:50,accessPw:localStorage.getItem("withmeu_access_pw")||""};
 var TYPE_COLORS={text:"#2b2b2b",voice:"#6b8fce",image:"#d49a6a"};
 var TYPE_LABELS={text:"文字",voice:"语音",image:"图片"};
 var API_BASE=location.hostname==="localhost"?"":"https://YOUR_SUBDOMAIN.workers.dev";
@@ -190,9 +206,33 @@ function qs(sel){return document.querySelector(sel);}
 function byId(id){return document.getElementById(id);}
 
 // ============== API CALLS ==============
-function doLogin(){var e=prompt("Email:");if(!e)return;var p=prompt("Password:");if(!p)return;var b=document.querySelector(".login-btn");b.textContent="...";b.disabled=true;fetch(API_BASE+"/api/login",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"email="+encodeURIComponent(e)+"&password="+encodeURIComponent(p)}).then(function(r){return r.json();}).then(function(d){b.textContent="Login";b.disabled=false;if(d.token){S.authToken=d.token;localStorage.setItem("withfan_token",d.token);byId("tokenInp").value=d.token;toast("Token saved");}else{toast("Login failed: "+(d.error||""));}}).catch(function(){b.textContent="Login";b.disabled=false;toast("Network error");});}
+// ============== ACCESS GATE ==============
+function showAccessGate(msg){byId("gateErr").textContent=msg||"";byId("accessGate").classList.add("show");setTimeout(function(){byId("gateInp").focus();},10);}
+function hideAccessGate(){byId("accessGate").classList.remove("show");}
+function submitAccess(){var v=byId("gateInp").value.trim();if(!v)return;S.accessPw=v;localStorage.setItem("withmeu_access_pw",v);byId("gateErr").textContent="";startApp();}
+function boot(){
+  fetch(API_BASE+"/api/auth/status").then(function(r){return r.json();}).then(function(d){
+    if(d&&d.passwordRequired){
+      if(S.accessPw){startApp();}else{showAccessGate("请输入访问密码");}
+    }else{S.accessPw="";startApp();}
+  }).catch(function(e){
+    console.error("[withMeu] auth status failed:",e);
+    byId("msgArea").innerHTML='<div class="err-card">无法连接服务器</div>';
+  });
+}
+function startApp(){
+  hideAccessGate();
+  loadProfiles().then(function(){
+    console.log("[withMeu] profiles loaded, picking ZHAN");
+    pick("12289");
+  }).catch(function(e){
+    if(e&&e.message==="password_required")return;
+    console.error("[withMeu] init failed:",e);
+    byId("msgArea").innerHTML='<div class="err-card">Init failed: '+esc(e.message||e)+'</div>';
+  });
+}
 
-function apiGet(path){var headers={};if(S.authToken)headers["X-WithFan-Auth"]=S.authToken;return fetch(API_BASE+path,{headers:headers}).then(function(r){return r.json();});}
+function apiGet(path){var headers={};if(S.accessPw)headers["X-Access-Password"]=S.accessPw;return fetch(API_BASE+path,{headers:headers}).then(function(r){if(r.status===401){showAccessGate("密码错误，请重新输入");throw new Error("password_required");}return r.json();});}
 
 function loadProfiles(){
   return apiGet("/api/profiles").then(function(d){
@@ -248,6 +288,7 @@ function fetchMessages(pid, opts){
     }
     return d;
   }).catch(function(err){
+    if(err&&err.message==="password_required")return;
     console.error("fetchMessages:",pid,err);
     if(S.current&&S.current.id===pid&&(!S.cache[pid]||!S.cache[pid].messages.length)){
       byId("msgArea").innerHTML='<div class="err-card">Failed to load<br/><small>'+esc(err.message||err)+'</small></div>';
@@ -456,6 +497,7 @@ function fetchGalleryImages(){
     else if(S.galleryOffset===imgs.length)renderGallery();
     else appendGalleryImages(imgs);
   }).catch(function(e){
+    if(e&&e.message==="password_required")return;
     console.error("gallery:",e);
     if(S.galleryImages.length===0)renderGalleryEmpty();
   }).finally(function(){S.galleryLoading=false;});
@@ -541,6 +583,7 @@ function fetchCalendar(){
     S.calData=d;
     renderCalendar();
   }).catch(function(e){
+    if(e&&e.message==="password_required")return;
     console.error("cal:",e);
     byId("msgArea").innerHTML='<div class="err-card">Failed to load<br/><small>'+esc(e.message||e)+'</small></div>';
   });
@@ -651,14 +694,7 @@ byId("msgArea").addEventListener("click",function(e){
 
 // ============== INIT ==============
 console.log("[withMeu] init");
-loadProfiles().then(function(){
-  console.log("[withMeu] profiles loaded, picking ZHAN");
-  pick("12289");
-}).catch(function(e){
-  console.error("[withMeu] init failed:",e);
-  byId("msgArea").innerHTML='<div class="err-card">Init failed: '+esc(e.message||e)+'</div>';
-});
-byId("tokenInp").value=S.authToken;
+boot();
 </script>
 </body>
 </html>

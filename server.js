@@ -19,6 +19,9 @@ try {
   console.warn("config.json not found or invalid, using empty auth. Copy config.example.json to config.json and fill in your token.");
 }
 
+// ====== 站点访问密码（环境变量 ACCESS_PASSWORD，留空则开放访问）======
+const ACCESS_PASSWORD = (process.env.ACCESS_PASSWORD || "").trim();
+
 // ====== JWT Token 管理 ======
 
 function decodeJwtPayload(token) {
@@ -461,6 +464,22 @@ async function handleAPI(req, res) {
   const parsed = url.parse(req.url, true);
   const pathname = parsed.pathname;
   const query = parsed.query;
+
+  // Access status — always public
+  if (pathname === "/api/auth/status" && req.method === "GET") {
+    jsonRes(res, { success: true, passwordRequired: !!ACCESS_PASSWORD });
+    return;
+  }
+
+  // Access-password gate: when configured, all other API routes require it
+  if (ACCESS_PASSWORD) {
+    const provided = req.headers["x-access-password"] || "";
+    if (provided !== ACCESS_PASSWORD) {
+      jsonRes(res, { success: false, error: "password_required", passwordRequired: true }, 401);
+      return;
+    }
+  }
+
   const auth = await getAuth(req);
 
   try {
@@ -656,7 +675,7 @@ function handleCors(req, res) {
   res.writeHead(204, {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "X-WithFan-Auth, Content-Type",
+    "Access-Control-Allow-Headers": "X-Access-Password, X-WithFan-Auth, Content-Type",
   });
   res.end();
 }
