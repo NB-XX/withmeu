@@ -456,7 +456,7 @@ async function syncProfile(env, profileId, auth, retryMode = "off") {
   console.log("Synced " + profile.name + ": " + messages.length + " new, retryMode=" + retryMode);
 }
 
-// retryMode: "off" (default, */3 fetch cycle) | "recent" (hourly, last 7 days) | "full" (daily sweep, no window)
+// retryMode: "off" (default, */3 fetch cycle) | "recent" (:18 cycle, last 7 days) | "full" (03:18 cycle, no window)
 async function retryMissingTranslations(env, profileId, auth, fullSweep = false) {
   // D1 免费额度是账户级共享的（5M 行读/天）。此前每 3 分钟对每个主播全历史扫一遍
   // LEFT JOIN 找未翻译行——93% 已翻译时 LIMIT 凑不满导致扫穿整个 profile 索引，
@@ -597,10 +597,10 @@ export default {
     return handleRequest(request, env, ctx);
   },
 
-  // Cron triggers:
-  //   */3 * * * *  — fetch new messages + inline translate (no history scans)
-  //   17 * * * *   — retry missing translations, last 7 days window
-  //   41 3 * * *   — daily full-history retry sweep
+  // Cron trigger: every 3 min — fetch new messages + inline translate.
+  // Translation backfill rides the :18 cycle hourly (7-day window) and does a
+  // full-history sweep at 03:18 UTC. Piggybacked on the single cron because the
+  // Workers FREE plan caps the account at 5 cron triggers total (4 already used).
   async scheduled(event, env, ctx) {
     // Ensure tokens table exists for persistence
     try {
@@ -614,8 +614,9 @@ export default {
     const payload = decodeJwtPayload(auth);
     console.log("Cron: token valid until", payload ? new Date(payload.exp * 1000).toISOString() : "unknown");
 
-    const retryMode = event.cron === "41 3 * * *" ? "full"
-      : event.cron === "17 * * * *" ? "recent"
+    const d = new Date(event.scheduledTime || Date.now());
+    const retryMode = (d.getUTCMinutes() === 18 && d.getUTCHours() === 3) ? "full"
+      : d.getUTCMinutes() === 18 ? "recent"
       : "off";
 
     console.log("Cron: syncing all profiles (retryMode=" + retryMode + ")...");

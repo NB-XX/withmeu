@@ -8,8 +8,9 @@ database_name = "withmeu-db"
 database_id = "b823eaa2-57a5-46b0-837c-f490c6fcc7e9" # Cloudflare dashboard > withmeu-db
 
 [triggers]
-# */3: 抓新消息+就地翻译（不做历史扫描）；17 分: 回填近 7 天翻译失败；3:41: 全历史兜底
-crons = ["*/3 * * * *", "17 * * * *", "41 3 * * *"]
+# 保持单个 */3：抓新消息+就地翻译；翻译失败回填搭便车在每小时 :18（7天窗口）与每天 03:18（全历史）。
+# 不加第二个 cron 是因为 Workers 免费计划全账户限 5 个 cron 触发器（当前已用 4 个）。
+crons = ["*/3 * * * *"]
 
 [assets]
 directory = "./public"
