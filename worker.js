@@ -348,7 +348,7 @@ async function handleStats(env, profileId, params) {
   });
 }
 
-async function syncProfile(env, profileId, auth) {
+async function syncProfile(env, profileId, auth, retryMode = "off") {
   const profile = await env.DB.prepare("SELECT * FROM profiles WHERE id = ?1").bind(profileId).first();
   if (!profile) return;
 
@@ -366,7 +366,7 @@ async function syncProfile(env, profileId, auth) {
 
   if (result.status !== 200 || !result.data.message) {
     // Still try to fill missing translations even if fetch fails
-    await retryMissingTranslations(env, profileId, auth);
+    if (retryMode !== "off") await retryMissingTranslations(env, profileId, auth, retryMode === "full");
     return;
   }
 
@@ -447,20 +447,26 @@ async function syncProfile(env, profileId, auth) {
   }
   } // close if (messages.length > 0)
 
-  await retryMissingTranslations(env, profileId, auth);
+  if (retryMode !== "off") await retryMissingTranslations(env, profileId, auth, retryMode === "full");
 
   // Always update last_fetched so frontend knows sync is alive
   await env.DB.prepare("UPDATE profiles SET last_fetched = ?1 WHERE id = ?2")
     .bind(new Date().toISOString(), profileId).run();
 
-  console.log("Synced " + profile.name + ": " + messages.length + " new, retried translations");
+  console.log("Synced " + profile.name + ": " + messages.length + " new, retryMode=" + retryMode);
 }
 
-async function retryMissingTranslations(env, profileId, auth) {
+// retryMode: "off" (default, */3 fetch cycle) | "recent" (hourly, last 7 days) | "full" (daily sweep, no window)
+async function retryMissingTranslations(env, profileId, auth, fullSweep = false) {
+  // D1 免费额度是账户级共享的（5M 行读/天）。此前每 3 分钟对每个主播全历史扫一遍
+  // LEFT JOIN 找未翻译行——93% 已翻译时 LIMIT 凑不满导致扫穿整个 profile 索引，
+  // ~2.5M 行读/天。新消息在 syncProfile 里已就地翻译，这里只是失败重试回填：
+  // 改为每小时带 7 天窗口扫描 + 每天一次全历史兜底。
+  const win = fullSweep ? "" : " AND m.created_at >= datetime('now', '-7 days')";
   // Retry missing message translations (up to 20 per run)
   try {
     const untranslated = await env.DB.prepare(
-      "SELECT m.message_id FROM messages m LEFT JOIN translations t ON t.profile_id = m.profile_id AND t.message_id = m.message_id WHERE m.profile_id = ?1 AND m.type = 'text' AND m.content IS NOT NULL AND m.content != '' AND (t.translation IS NULL OR t.translation = '') ORDER BY m.created_at DESC LIMIT 20"
+      "SELECT m.message_id FROM messages m LEFT JOIN translations t ON t.profile_id = m.profile_id AND t.message_id = m.message_id WHERE m.profile_id = ?1 AND m.type = 'text' AND m.content IS NOT NULL AND m.content != '' AND (t.translation IS NULL OR t.translation = '')" + win + " ORDER BY m.created_at DESC LIMIT 20"
     ).bind(profileId).all();
     for (const row of untranslated.results) {
       try {
@@ -479,7 +485,7 @@ async function retryMissingTranslations(env, profileId, auth) {
   // Retry missing fan translations (up to 50 per run)
   try {
     const untranslatedFan = await env.DB.prepare(
-      "SELECT m.message_id, m.message_reply_id, m.reply_content FROM messages m LEFT JOIN translations t ON t.profile_id = m.profile_id AND t.message_id = m.message_id WHERE m.profile_id = ?1 AND m.message_reply_id > 0 AND m.reply_content IS NOT NULL AND m.reply_content != '' AND m.reply_content != 'null' AND (t.fan_translation IS NULL OR t.fan_translation = '') ORDER BY m.created_at DESC LIMIT 50"
+      "SELECT m.message_id, m.message_reply_id, m.reply_content FROM messages m LEFT JOIN translations t ON t.profile_id = m.profile_id AND t.message_id = m.message_id WHERE m.profile_id = ?1 AND m.message_reply_id > 0 AND m.reply_content IS NOT NULL AND m.reply_content != '' AND m.reply_content != 'null' AND (t.fan_translation IS NULL OR t.fan_translation = '')" + win + " ORDER BY m.created_at DESC LIMIT 50"
     ).bind(profileId).all();
     for (const row of untranslatedFan.results) {
       try {
@@ -499,9 +505,9 @@ async function retryMissingTranslations(env, profileId, auth) {
   } catch (e) { /* skip */ }
 }
 
-async function syncAllProfiles(env) {
+async function syncAllProfiles(env, retryMode = "off") {
   const auth = await ensureValidAuth(env);
-  await Promise.all(ARTISTS.map((artist) => syncProfile(env, artist.id, auth)));
+  await Promise.all(ARTISTS.map((artist) => syncProfile(env, artist.id, auth, retryMode)));
 }
 
 // ========== Router ==========
@@ -591,7 +597,10 @@ export default {
     return handleRequest(request, env, ctx);
   },
 
-  // Cron trigger — runs every 3 minutes
+  // Cron triggers:
+  //   */3 * * * *  — fetch new messages + inline translate (no history scans)
+  //   17 * * * *   — retry missing translations, last 7 days window
+  //   41 3 * * *   — daily full-history retry sweep
   async scheduled(event, env, ctx) {
     // Ensure tokens table exists for persistence
     try {
@@ -605,8 +614,12 @@ export default {
     const payload = decodeJwtPayload(auth);
     console.log("Cron: token valid until", payload ? new Date(payload.exp * 1000).toISOString() : "unknown");
 
-    console.log("Cron: syncing all profiles...");
-    await syncAllProfiles(env);
+    const retryMode = event.cron === "41 3 * * *" ? "full"
+      : event.cron === "17 * * * *" ? "recent"
+      : "off";
+
+    console.log("Cron: syncing all profiles (retryMode=" + retryMode + ")...");
+    await syncAllProfiles(env, retryMode);
     console.log("Cron: done");
   },
 };
