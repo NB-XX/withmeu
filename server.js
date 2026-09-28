@@ -275,9 +275,10 @@ async function fetchFromWithFan(profileId, lastSyncAt, auth) {
 // [{"text":"안녕"}], [{"voice":"https://...mp4"}], [{"image":"...png"}].
 // Older messages still return a plain string. Normalize both back to a plain
 // string (text -> joined blocks; voice/image -> the media URL).
-function blockText(b) {
+function blockText(b, type) {
   if (!b || typeof b !== "object") return null;
-  for (const k of ["text", "voice", "image", "video", "src", "url"]) {
+  const preferred = type === "video" ? "video" : type === "image" ? "image" : type === "voice" ? "voice" : "text";
+  for (const k of [preferred, "video", "image", "voice", "text", "src", "url"]) {
     const v = b[k];
     if (v != null && String(v).trim() !== "") return String(v);
   }
@@ -299,7 +300,7 @@ function normalizeContent(content, type) {
   }
   const blocks = Array.isArray(content) ? content : [content];
   const isMedia = type === "voice" || type === "image" || type === "video";
-  const parts = blocks.map(blockText).filter(Boolean);
+  const parts = blocks.map((block) => blockText(block, type)).filter(Boolean);
   const joined = parts.join(isMedia ? "" : "\n").trim();
   return joined || null;
 }

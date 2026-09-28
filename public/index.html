@@ -365,7 +365,8 @@ function norm(v,type){
     var isMedia=type==="voice"||type==="image";
     var parts=[];
     for(var i=0;i<bl.length;i++){var b=bl[i];if(!b||typeof b!=="object")continue;
-      var ks=["text","voice","image","video","src","url"];var got=null;
+      var preferred=type==="video"?"video":type==="image"?"image":type==="voice"?"voice":"text";
+      var ks=[preferred,"video","image","voice","text","src","url"].filter(function(k,i,a){return a.indexOf(k)===i;});var got=null;
       for(var k=0;k<ks.length;k++){var val=b[ks[k]];if(val!=null&&String(val).trim()){got=String(val);break;}}
       if(got)parts.push(got);
     }
