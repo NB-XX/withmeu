@@ -207,6 +207,12 @@ function fmtTime(t){if(!t)return"";var iso=t.replace(" ","T")+"Z";var d=new Date
 function getMsgId(m){return String(m.messageId);}
 function qs(sel){return document.querySelector(sel);}
 function byId(id){return document.getElementById(id);}
+function normalizeVideoUrl(url){
+  var value=String(url||"");
+  var match=value.match(/^https?:\/\/[^/]+\/video\/([a-f\d]+)\.mp4(?:[?#].*)?$/i);
+  if(match)return"https://withfan-vod.com/video-out/"+match[1]+"/"+match[1]+".m3u8";
+  return value;
+}
 function isVideoUrl(url){return /\.(mp4|m4v|mov|webm|m3u8)(?:$|[?#])/i.test(String(url||""));}
 
 // ============== API CALLS ==============
@@ -370,6 +376,7 @@ function norm(v,type){
 function normMsg(m){
   if(!m)return m;
   m.content=norm(m.content,m.type);
+  m.content=normalizeVideoUrl(m.content);
   m.replyContent=norm(m.replyContent);
   m.translation=norm(m.translation);
   m.fanTranslation=norm(m.fanTranslation);
@@ -695,17 +702,6 @@ function calPickDay(date){
   updateChips();exitGallery();
   if(S.current)fetchMessages(S.current.id);
 }
-
-// ============== KEYBOARD ==============
-document.addEventListener("keydown",function(e){
-  if(e.target.closest("input,textarea"))return;
-  var n=parseInt(e.key);if(n>=1&&n<=5){pick(ARTISTS[n-1].id);return;}
-  if(e.key==="/"){e.preventDefault();byId("searchInp").focus();}
-  else if(e.key==="g")toggleGallery();
-  else if(e.key==="f")toggleFilter();
-  else if(e.key==="c")toggleCalendar();
-  else if(e.key==="Escape"){closeImg();}
-});
 
 // ============== VOICE PLAYER ==============
 byId("msgArea").addEventListener("click",function(e){

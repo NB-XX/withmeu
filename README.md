@@ -65,17 +65,6 @@ Open **http://localhost:3456** in your browser.
 
 When set, visitors see a password prompt and all `/api/*` routes require the `X-Access-Password` header. Leave it unset or empty for open access.
 
-## Keyboard Shortcuts
-
-| Key | Action |
-|-----|--------|
-| `1`–`5` | Switch artist |
-| `/` | Focus search |
-| `F` | Toggle date filter panel |
-| `G` | Toggle image gallery |
-| `C` | Toggle calendar |
-| `Esc` | Close image overlay |
-
 ## Database
 
 Messages and translations are stored in `data.db` (SQLite, WAL mode). The database is **not** bundled — no historical data ships with the repo. On first run, `server.js` creates an empty `data.db` (via its inline `CREATE TABLE IF NOT EXISTS` statements) and starts fetching fresh messages from withFan. For the Cloudflare deployment, initialize D1 from `schema.sql` (see Deploy below).

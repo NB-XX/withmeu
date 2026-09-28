@@ -283,6 +283,14 @@ function blockText(b) {
   }
   return null;
 }
+function normalizeVideoUrl(url) {
+  if (typeof url !== "string") return url;
+  const match = url.match(/^https?:\/\/[^/]+\/video\/([a-f\d]+)\.mp4(?:[?#].*)?$/i);
+  return match ? `https://withfan-vod.com/video-out/${match[1]}/${match[1]}.m3u8` : url;
+}
+function isVideoUrl(url) {
+  return typeof url === "string" && /\.(?:mp4|m4v|mov|webm|m3u8)(?:$|[?#])/i.test(url);
+}
 function normalizeContent(content, type) {
   if (content == null) return null;
   if (typeof content === "string") {
@@ -362,7 +370,8 @@ async function syncProfile(profileId, auth) {
   const tx = db.transaction(() => {
     for (const msg of result.messages) {
       // Normalize new array-of-blocks content format back to plain strings.
-      msg.content = normalizeContent(msg.content, msg.type);
+      msg.content = normalizeVideoUrl(normalizeContent(msg.content, msg.type));
+      if (isVideoUrl(msg.content)) msg.type = "video";
       msg.replyContent = normalizeContent(msg.replyContent, "text");
       const r = insertMsg.run(
         msg.messageId, profileId, msg.content, msg.type || "text",
