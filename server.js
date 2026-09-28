@@ -277,7 +277,7 @@ async function fetchFromWithFan(profileId, lastSyncAt, auth) {
 // string (text -> joined blocks; voice/image -> the media URL).
 function blockText(b) {
   if (!b || typeof b !== "object") return null;
-  for (const k of ["text", "voice", "image", "src", "url"]) {
+  for (const k of ["text", "voice", "image", "video", "src", "url"]) {
     const v = b[k];
     if (v != null && String(v).trim() !== "") return String(v);
   }
@@ -290,7 +290,7 @@ function normalizeContent(content, type) {
     return s === "" || s === "null" ? null : content;
   }
   const blocks = Array.isArray(content) ? content : [content];
-  const isMedia = type === "voice" || type === "image";
+  const isMedia = type === "voice" || type === "image" || type === "video";
   const parts = blocks.map(blockText).filter(Boolean);
   const joined = parts.join(isMedia ? "" : "\n").trim();
   return joined || null;
@@ -541,8 +541,12 @@ async function handleAPI(req, res) {
         conditions.push("m.created_at <= ?");
       }
       if (query.type) {
-        binds.push(query.type);
-        conditions.push("m.type = ?");
+        if (query.type === "media") {
+          conditions.push("(m.type IN ('image','video') OR lower(m.content) LIKE '%.mp4%' OR lower(m.content) LIKE '%.m4v%' OR lower(m.content) LIKE '%.mov%' OR lower(m.content) LIKE '%.webm%' OR lower(m.content) LIKE '%.m3u8%')");
+        } else {
+          binds.push(query.type);
+          conditions.push("m.type = ?");
+        }
       }
       if (query.q && query.q.trim()) {
         const like = "%" + query.q.trim() + "%";

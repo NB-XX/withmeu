@@ -64,6 +64,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR","Pin
 .fan-tl .tl-badge{display:inline-block;font-size:9px;font-weight:600;color:var(--text3);background:var(--card);padding:1px 6px;border-radius:3px;margin-right:6px;border:1px solid var(--border);letter-spacing:0.3px;vertical-align:middle;position:relative;top:-1px;}
 
 .msg-img{display:block;max-width:100%;max-height:360px;border-radius:6px;cursor:pointer;border:1px solid var(--border);transition:opacity 0.15s;}
+.msg-video{display:block;width:100%;max-width:480px;max-height:420px;border-radius:6px;background:#111;}
 .msg-img:hover{opacity:0.9;}
 
 .voice-player{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--fan-bg);border-radius:8px;margin-top:4px;max-width:320px;}
@@ -78,6 +79,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR","Pin
 .gallery-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;}
 .gallery-item{position:relative;cursor:pointer;overflow:hidden;border-radius:4px;aspect-ratio:1;background:var(--fan-bg);}
 .gallery-item img{width:100%;height:100%;object-fit:cover;transition:transform 0.2s;}
+.gallery-item video{width:100%;height:100%;object-fit:cover;background:#111;}
 .gallery-item:hover img{transform:scale(1.04);}
 .gallery-item .gi-date{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.55));color:#fff;font-size:10px;padding:6px 8px 4px;opacity:0;transition:opacity 0.2s;}
 .gallery-item:hover .gi-date{opacity:1;}
@@ -170,6 +172,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR","Pin
 <button class="ov-prev" id="ovPrev" onclick="event.stopPropagation();navImg(-1)">‹</button>
 <button class="ov-next" id="ovNext" onclick="event.stopPropagation();navImg(1)">›</button>
 <img id="imgOlImg" src="" alt="" onclick="event.stopPropagation()"/>
+<video id="videoOlPlayer" controls playsinline onclick="event.stopPropagation()" style="display:none;max-width:92vw;max-height:80vh"></video>
 <div class="ov-info" id="ovInfo"></div>
 <button class="ov-btn" id="ovJump" onclick="event.stopPropagation();jumpToMsg()">View in timeline →</button>
 <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:12px;cursor:pointer;" onclick="closeImg()">Close</div>
@@ -190,8 +193,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR","Pin
 // ============== STATE ==============
 var ARTISTS=[{id:"12289",name:"ZHAN",kr:"지한"},{id:"12290",name:"IVI",kr:"이비"},{id:"12291",name:"SUA",kr:"수아"},{id:"12292",name:"RITZ",kr:"리츠"},{id:"12293",name:"CHOEUN",kr:"최은"},{id:"14433",name:"KANA",kr:"카나"}];
 var S={current:null,cache:{},profiles:{},searchQ:"",dateFrom:null,dateTo:null,typeFilter:null,filterOpen:false,galleryMode:false,galleryImages:[],galleryIdx:-1,galleryOffset:0,galleryHasMore:true,galleryLoading:false,galleryTotal:0,calMode:false,calYear:0,calMonth:0,calData:null,fetching:{},loadingMore:{},PAGE_SIZE:50,accessPw:localStorage.getItem("withmeu_access_pw")||""};
-var TYPE_COLORS={text:"#2b2b2b",voice:"#6b8fce",image:"#d49a6a"};
-var TYPE_LABELS={text:"文字",voice:"语音",image:"图片"};
+var TYPE_COLORS={text:"#2b2b2b",voice:"#6b8fce",image:"#d49a6a",video:"#8c72c7"};
+var TYPE_LABELS={text:"文字",voice:"语音",image:"图片",video:"视频"};
 var API_BASE=location.hostname==="localhost"?"":"https://YOUR_SUBDOMAIN.workers.dev";
 var _searchTimer=0;
 
@@ -204,6 +207,7 @@ function fmtTime(t){if(!t)return"";var iso=t.replace(" ","T")+"Z";var d=new Date
 function getMsgId(m){return String(m.messageId);}
 function qs(sel){return document.querySelector(sel);}
 function byId(id){return document.getElementById(id);}
+function isVideoUrl(url){return /\.(mp4|m4v|mov|webm|m3u8)(?:$|[?#])/i.test(String(url||""));}
 
 // ============== API CALLS ==============
 // ============== ACCESS GATE ==============
@@ -355,7 +359,7 @@ function norm(v,type){
     var isMedia=type==="voice"||type==="image";
     var parts=[];
     for(var i=0;i<bl.length;i++){var b=bl[i];if(!b||typeof b!=="object")continue;
-      var ks=["text","voice","image","src","url"];var got=null;
+      var ks=["text","voice","image","video","src","url"];var got=null;
       for(var k=0;k<ks.length;k++){var val=b[ks[k]];if(val!=null&&String(val).trim()){got=String(val);break;}}
       if(got)parts.push(got);
     }
@@ -369,25 +373,29 @@ function normMsg(m){
   m.replyContent=norm(m.replyContent);
   m.translation=norm(m.translation);
   m.fanTranslation=norm(m.fanTranslation);
+  if(isVideoUrl(m.content))m.type="video";
   return m;
 }
 
 function buildMsgHTML(m){
-  var isImg=m.type==="image";
+  var isVid=m.type==="video"||isVideoUrl(m.content);
+  var isImg=m.type==="image"&&!isVid;
   var hasFan=m.replyContent&&m.replyContent!=="null"&&m.replyContent!=="";
   var fanHtml="",bodyHtml="",tlHtml="";
   if(hasFan){
     fanHtml='<div class="fan-msg">'+esc(m.replyContent)+'</div>';
     if(m.fanTranslation)fanHtml+='<div class="fan-tl"><span class="tl-badge">译</span>'+esc(m.fanTranslation)+'</div>';
   }
-  if(isImg){
+  if(isVid){
+    bodyHtml='<video class="msg-video" controls playsinline preload="metadata" src="'+esc(m.content)+'"></video>';
+  }else if(isImg){
     bodyHtml='<img class="msg-img" src="'+esc(m.content)+'" alt="image" loading="lazy" onclick="event.stopPropagation();openImg(\x27'+esc(m.content)+'\x27,\x27'+m.messageId+'\x27,\x27'+esc(m.createdAt||"")+'\x27)" onerror="this.style.display=\x27none\x27"/>';
   }else if(m.type==="voice"){
     bodyHtml='<div class="voice-player"><button class="voice-play" data-src="'+esc(m.content)+'"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg></button><div class="voice-bar-wrap"><div class="voice-bar"><div class="voice-progress"></div></div></div><span class="voice-dur">0:00</span><audio class="voice-audio" src="'+esc(m.content)+'" preload="metadata"></audio></div>';
   }else{
     bodyHtml='<div class="reply">'+esc(m.content)+'</div>';
   }
-  if(m.translation&&!isImg)tlHtml='<div class="tl"><span class="tl-badge">译</span>'+esc(m.translation)+'</div>';
+  if(m.translation&&!isImg&&!isVid)tlHtml='<div class="tl"><span class="tl-badge">译</span>'+esc(m.translation)+'</div>';
   return'<div class="card" data-msgid="'+getMsgId(m)+'"><div class="card-hdr"><img class="thumb" src="'+(m.profileImage||ava(m.profileId))+'" alt="" onerror="this.src=\x27'+ava(m.profileId)+'\x27" loading="lazy"/><div class="meta"><h3>'+esc(m.nickname)+'</h3><time>'+fmtTime(m.createdAt)+'</time></div></div>'+fanHtml+bodyHtml+tlHtml+'</div>';
 }
 
@@ -518,7 +526,7 @@ function toggleGallery(){
 function fetchGalleryImages(){
   if(!S.current||S.galleryLoading||!S.galleryHasMore)return;
   S.galleryLoading=true;
-  var path="/api/messages?profileId="+S.current.id+"&type=image&limit=30&offset="+S.galleryOffset;
+  var path="/api/messages?profileId="+S.current.id+"&type=media&limit=30&offset="+S.galleryOffset;
   if(S.dateFrom)path+="&dateFrom="+encodeURIComponent(S.dateFrom);
   if(S.dateTo)path+="&dateTo="+encodeURIComponent(S.dateTo);
   if(S.searchQ)path+="&q="+encodeURIComponent(S.searchQ);
@@ -550,7 +558,8 @@ function renderGalleryEmpty(){
 
 function renderGallery(){
   var html='<div class="gallery-grid">'+S.galleryImages.map(function(m,i){
-    return'<div class="gallery-item" onclick="openGalleryImg('+i+')"><img src="'+esc(m.content)+'" alt="" loading="lazy" onerror="this.parentElement.style.display=\x27none\x27"/><div class="gi-date">'+fmtTime(m.createdAt).slice(0,16)+'</div></div>';
+    var video=isVideoUrl(m.content)||m.type==="video",media=video?'<video src="'+esc(m.content)+'" muted playsinline preload="metadata"></video>':'<img src="'+esc(m.content)+'" alt="" loading="lazy" onerror="this.parentElement.style.display=\x27none\x27"/>';
+    return'<div class="gallery-item" onclick="openGalleryImg('+i+')">'+media+'<div class="gi-date">'+fmtTime(m.createdAt).slice(0,16)+(video?' · 视频':'')+'</div></div>';
   }).join("")+'</div>';
   html+=buildGalleryFooter();
   byId("msgArea").innerHTML=html;
@@ -564,7 +573,8 @@ function appendGalleryImages(newImgs){
   if(footer)footer.remove();
   var html=newImgs.map(function(m,i){
     var idx=S.galleryImages.length-newImgs.length+i;
-    return'<div class="gallery-item" onclick="openGalleryImg('+idx+')"><img src="'+esc(m.content)+'" alt="" loading="lazy" onerror="this.parentElement.style.display=\x27none\x27"/><div class="gi-date">'+fmtTime(m.createdAt).slice(0,16)+'</div></div>';
+    var video=isVideoUrl(m.content)||m.type==="video",media=video?'<video src="'+esc(m.content)+'" muted playsinline preload="metadata"></video>':'<img src="'+esc(m.content)+'" alt="" loading="lazy" onerror="this.parentElement.style.display=\x27none\x27"/>';
+    return'<div class="gallery-item" onclick="openGalleryImg('+idx+')">'+media+'<div class="gi-date">'+fmtTime(m.createdAt).slice(0,16)+(video?' · 视频':'')+'</div></div>';
   }).join("");
   grid.insertAdjacentHTML("beforeend",html);
   var footerHtml=buildGalleryFooter();
@@ -588,12 +598,13 @@ function buildGalleryFooter(){
   return"";
 }
 
-function openGalleryImg(idx){S.galleryIdx=idx;var m=S.galleryImages[idx];byId("imgOlImg").src=m.content;byId("ovInfo").textContent=fmtTime(m.createdAt);byId("imgOl").classList.add("show");updateOvArrows();}
-function openImg(url,msgId,createdAt){S.galleryIdx=S.galleryImages.findIndex(function(m){return String(m.messageId)===msgId;});byId("imgOlImg").src=url;byId("ovInfo").textContent=fmtTime(createdAt);byId("imgOl").classList.add("show");updateOvArrows();}
-function navImg(dir){var n=(S.galleryIdx+dir+S.galleryImages.length)%S.galleryImages.length;S.galleryIdx=n;var m=S.galleryImages[n];byId("imgOlImg").src=m.content;byId("ovInfo").textContent=fmtTime(m.createdAt);updateOvArrows();}
+function showGalleryMedia(m){var video=isVideoUrl(m.content)||m.type==="video",img=byId("imgOlImg"),player=byId("videoOlPlayer");img.style.display=video?"none":"";player.style.display=video?"":"none";if(video){player.pause();player.src=m.content;player.load();}else{player.pause();player.removeAttribute("src");player.load();img.src=m.content;}byId("ovInfo").textContent=fmtTime(m.createdAt);}
+function openGalleryImg(idx){S.galleryIdx=idx;showGalleryMedia(S.galleryImages[idx]);byId("imgOl").classList.add("show");updateOvArrows();}
+function openImg(url,msgId,createdAt){S.galleryIdx=S.galleryImages.findIndex(function(m){return String(m.messageId)===msgId;});showGalleryMedia({content:url,createdAt:createdAt,type:isVideoUrl(url)?"video":"image"});byId("imgOl").classList.add("show");updateOvArrows();}
+function navImg(dir){var n=(S.galleryIdx+dir+S.galleryImages.length)%S.galleryImages.length;S.galleryIdx=n;showGalleryMedia(S.galleryImages[n]);updateOvArrows();}
 function updateOvArrows(){var t=S.galleryImages.length;byId("ovPrev").style.display=t>1?"flex":"none";byId("ovNext").style.display=t>1?"flex":"none";}
 function jumpToMsg(){var m=S.galleryImages[S.galleryIdx];if(!m)return;closeImg();S.galleryMode=false;byId("btnGallery").classList.remove("on");S.searchQ="";S.dateFrom=null;S.dateTo=null;S.typeFilter=null;byId("searchInp").value="";byId("dateFrom").value="";byId("dateTo").value="";updateChips();if(S.current)fetchMessages(S.current.id).then(function(){setTimeout(function(){var el=qs('.card[data-msgid="'+m.messageId+'"]');if(el){el.scrollIntoView({behavior:"smooth",block:"center"});el.style.borderColor="var(--accent)";setTimeout(function(){el.style.borderColor="";},1500);}},200);});}
-function closeImg(){byId("imgOl").classList.remove("show");}
+function closeImg(){byId("imgOl").classList.remove("show");byId("videoOlPlayer").pause();}
 
 // ============== CALENDAR ==============
 function tColor(t){return TYPE_COLORS[t]||"#9a9a96";}
